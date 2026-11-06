@@ -1,0 +1,33 @@
+/* Nachtflug: dunkle Oberflaeche, Glas-Panels, Cyan-Akzente. Schriften: Sora und JetBrains Mono (SIL OFL, lokal eingebunden). */
+@font-face { font-family: "Sora"; font-weight: 300; font-style: normal; font-display: swap; src: url(fonts/sora-300.woff2) format("woff2"); }
+@font-face { font-family: "Sora"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/sora-400.woff2) format("woff2"); }
+@font-face { font-family: "Sora"; font-weight: 600; font-style: normal; font-display: swap; src: url(fonts/sora-600.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/jetbrains-400.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 500; font-style: normal; font-display: swap; src: url(fonts/jetbrains-500.woff2) format("woff2"); }
+
+:root {
+  color-scheme: dark;
+  --bg: #060d1a;
+  --glass: rgba(15, 23, 36, .78);
+  --glass-solid: #121b29;
+  --ink: #f0f6fc;
+  --ink2: #c4cfdb;
+  --muted: #a9b9ca;
+  --line: rgba(255, 255, 255, .1);
+  --line2: rgba(255, 255, 255, .06);
+  --cyan: #0de2eb;
+  --cyan-ink: #7af4fb;
+  --cyan-bg: rgba(13, 226, 235, .14);
+  --cyan-line: rgba(13, 226, 235, .45);
+  --mint: #58eda9;
+  --amber: #f5ae39;
+  --red: #fd736d;
+  /* Warnstufen (gelb, orange, rot, violett) nach den Stufen des Deutschen Wetterdienstes; -ink = Schriftfarbe auf dunklem Grund */
+  --w1: #f5d639; --w2: #f59639; --w3: #f04646; --w4: #be5af0;
+  --w1-ink: #f6e27a; --w2-ink: #ffb870; --w3-ink: #ff9c9c; --w4-ink: #e3b0ff;
+  --field: rgba(255, 255, 255, .06);
+  --chip: rgba(255, 255, 255, .06);
+  --shadow: 0 24px 60px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .1);
+  --sans: "Sora", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}

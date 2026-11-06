@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{NAME}} in 3D - {{UNTERTITEL}}</title>
+<meta name="description" content="{{BESCHREIBUNG}}">
+<link rel="icon" href="favicon.svg?v=4c7ba633" type="image/svg+xml">
+<link rel="icon" href="favicon.ico?v=a2f34966" sizes="48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=b412ef37">
+<meta name="theme-color" content="#060d1a">
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="fonts.css?v=ddbc90c1">
+<link rel="stylesheet" href="wetter.css?v=1e686de1">
+<link rel="stylesheet" href="start.css?v=564a9d8d">
+<link rel="stylesheet" href="lage.css?v=8a729302">
+
+</head>
+<body>
+<div class="bg" aria-hidden="true"></div>
+
+<header class="nav">
+  <a class="logo" href="./"><span class="mark">3D</span><span>{{NAME}}</span></a>
+  <nav aria-label="Seitenbereiche">
+    <a href="#inhalt">Was Sie hier finden</a>
+    <a href="#stand">Stand</a>
+    <a href="#ortsteile">Ortsteile</a>
+    <a class="btn" href="karte.html">Karte öffnen</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="intro">
+      <div class="coords">{{KOORD}}</div>
+      <h1>{{NAME}}<br><span>in 3D</span></h1>
+      <p class="lead">Die ganze {{ART}} als Karte zum Drehen, Zoomen und Entdecken: jedes Gebäude als Volumen auf dem Luftbild, dazu Adressen, Orte, Haltestellen, Termine und der Lauf der Sonne.</p>
+      <div class="cta">
+        <a class="btn big" href="karte.html">Karte öffnen
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a>
+        <a class="btn ghost big" href="#inhalt">Was gibt es hier?</a>
+      </div>
+      <p class="proto"><span class="tagp cy">Prototyp</span><span class="tagp" id="standKurz">Stand: …</span></p>
+    </div>
+    <a class="preview" href="karte.html" aria-label="3D-Karte öffnen">
+      <img src="img/vorschau.jpg" width="1280" height="800" alt="Vorschau der 3D-Karte: Gebäude und Luftbild von {{NAME}}" fetchpriority="high">
+      <span class="open">Karte öffnen
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></span>
+    </a>
+  </section>
+
+  <section id="wetter" class="wetter glass" hidden>
+    <div class="wx-head">
+      <div class="wx-now" id="wxNow"></div>
+      <div class="wxstrip" id="wxStrip"></div>
+    </div>
+    <div id="wxWarn"></div>
+    <p class="note" id="wxSrc"></p>
+    <label class="fxsw" id="wxSw" hidden><input type="checkbox" id="wxFx"> Wettereffekte (Regen, Schnee) auf dieser Seite zeigen</label>
+  </section>
+
+  <section id="lage" class="lage">
+    <div class="sec-head">
+      <div class="kicker">Live</div>
+      <h2>Aktuelle Lage</h2>
+      <p>Warnungen, Luft, Baustellen und Störungen. Die Live-Daten werden erst nach Ihrem Klick direkt von den jeweiligen Stellen geholt.</p>
+    </div>
+    <div class="lage-grid">
+      <article class="lage-card" id="lageLuft"></article>
+      <article class="lage-card" id="lageBau"></article>
+    </div>
+  </section>
+
+  <section id="inhalt" class="features">
+    <div class="sec-head">
+      <div class="kicker">Auf einen Blick</div>
+      <h2>Was Sie hier finden</h2>
+    </div>
+    <div class="cards">
+      <article class="card3"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path></svg>
+        <h3>Gebäude in 3D</h3><p>Rund <b id="nGeb">9.000</b> Gebäude mit Dachformen auf dem aktuellen Luftbild. Einfärben nach Nutzung, Höhe oder Bodenrichtwert.</p></article>
+      <article class="card3"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <h3>Adresssuche</h3><p>Straße und Hausnummer eingeben, die Kamera fliegt hin. Ein Klick auf ein Haus zeigt die Adresse und die Sonne dort.</p></article>
+      <article class="card3"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        <h3>Orte und Betriebe</h3><p><b id="nOrte">150</b> Orte wie Gastronomie, Läden, Ärzte und Schulen mit Webseite und, wo veröffentlicht, Öffnungszeiten.</p></article>
+      <article class="card3"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg>
+        <h3>Termine</h3><p>Veranstaltungen und Sitzungen aus den Programmen vor Ort, nach Tag, Wochenende oder Kategorie gefiltert, mit Ort auf der Karte.</p></article>
+      <article class="card3"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><rect width="16" height="16" x="4" y="3" rx="2"></rect><path d="M4 11h16"></path><path d="M12 3v8"></path><path d="m8 19-2 3"></path><path d="m18 22-2-3"></path><path d="M8 15h.01"></path><path d="M16 15h.01"></path></svg>
+        <h3>Haltestellen und Fahrplan</h3><p><b id="nHalt">70</b> Haltestellen mit dem Sollfahrplan ({{BETREIBER_KURZ}}) für den gewählten Tag, auf Wunsch mit Live-Abfahrten.</p></article>
+      <article class="card3"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+        <h3>Sonne und Schatten</h3><p>Tag und Uhrzeit ziehen, Sonnenstand und Schattenwurf der Häuser folgen. Besonnung je Gebäude als Schätzung.</p></article>
+    </div>
+  </section>
+
+  <section id="stand" class="stand glass">
+    <div class="st-head">
+      <div>
+        <div class="kicker">Letzte Aktualisierung</div>
+        <div class="big" id="standLauf">…</div>
+        <p class="note">Die Daten werden jede Woche automatisch neu gelesen. Gebäude, Adressen und Bodenrichtwerte ändern sich seltener und werden nur bei neuen Veröffentlichungen der Landesvermessung nachgezogen.</p>
+      </div>
+      <dl class="st-grid" id="standGrid"></dl>
+    </div>
+  </section>
+
+  <section id="neu" class="neu">
+    <div class="sec-head">
+      <div class="kicker">Neu seit der letzten Woche</div>
+      <h2>Neuigkeiten</h2>
+    </div>
+    <ul id="neuListe" class="neu-liste"></ul>
+  </section>
+
+  <section id="ortsteile" class="ortsteile">
+    <div class="sec-head">
+      <div class="kicker">{{ART}} {{NAME}}</div>
+      <h2>Ortsteile</h2>
+      <p>Ein Klick führt die Karte direkt dorthin.</p>
+    </div>
+    <ol id="otListe" class="ot-liste"></ol>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>© GeoBasis-DE/LGB, dl-de/by-2-0 (Daten geändert) · © OpenStreetMap-Mitwirkende, ODbL · Fahrplan: {{BETREIBER}}, {{FAHRPLAN_LIZENZ}}. Die Einzelheiten stehen in der Karte unter „Quellen“.</p>
+  <p class="links"><a href="karte.html">Karte</a><span id="legal"></span></p>
+</footer>
+
+<script src="data/ort.js"></script>
+<script src="data/meta.js?v=5eca6de0"></script>
+<script src="data/news.js?v=47c2de91"></script>
+<script src="data/stand.js?v=366a5130"></script>
+<script src="rechtliches.js?v=492551aa"></script>
+<script src="wetter.js?v=27395737"></script>
+<script src="start_wetter.js?v=ce2d7a39"></script>
+<script src="lage.js?v=352dcf81"></script>
+<script>if (window.ALL) { ALL.luft(document.getElementById('lageLuft')); ALL.baustellen(document.getElementById('lageBau')); }</script>
+<script src="start.js?v=a3aaddad"></script>
+</body>
+</html>

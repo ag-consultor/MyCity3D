@@ -1,0 +1,13 @@
+# WinSCP-Skript: laedt site\ in den Ordner der Subdomain hoch. Gestartet von scripts\veroeffentlichen.bat.
+# Voraussetzung: in WinSCP existiert eine gespeicherte Sitzung (Name: ort.json, veroeffentlichung.winscp_sitzung).
+# Zugangsdaten stehen nur dort, nie in diesem Projekt und nie in Git.
+# Zielordner (ort.json, veroeffentlichung.zielordner): Gross-/Kleinschreibung muss exakt dem Ordner auf dem Server entsprechen.
+# "cd" bricht ab, wenn der Ordner fehlt. Es wird NICHTS geloescht (kein -delete).
+option batch abort
+option confirm off
+open %2%
+cd %3%
+# %1% = voller Pfad zu site\, %2% = WinSCP-Sitzungsname, %3% = Zielordner (alles aus ort.json, von veroeffentlichen.bat uebergeben)
+synchronize remote -criteria=time,size -filemask="|*.part" "%1%" .
+close
+exit

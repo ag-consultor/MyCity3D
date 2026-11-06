@@ -1,0 +1,34 @@
+/* Aktuelle Lage (Luftqualitaet, Baustellen): gemeinsam fuer Startseite und Karte. Farbvariablen aus fonts.css. */
+.lg { margin: 0; }
+.lgt { display: block; margin-bottom: 6px; font: 600 14px/1.3 var(--sans); }
+.lgn { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.lgd { margin: 6px 0 0; color: var(--ink2); font-size: 12.5px; line-height: 1.5; }
+.lgn a { color: var(--cyan-ink); }
+.lg .wxbtn { margin-top: 10px; }
+.lgh { margin: 14px 0 4px; font: 600 12px/1.3 var(--mono); letter-spacing: .04em; color: var(--cyan-ink); }
+.lgbig { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; }
+.lgbig .dot { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 14px currentColor; flex: none; }
+.lgbig .num { font: 300 38px/1 var(--sans); letter-spacing: -.03em; }
+.lgbig .lbl { font: 500 14px/1.2 var(--sans); color: var(--ink2); }
+.lgbau { border-top: 1px solid var(--line2); padding: 7px 0; }
+.lgbau summary { cursor: pointer; font-size: 13px; line-height: 1.4; list-style-position: outside; }
+.lgbau .lgz { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
+.lgtag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--w1) 45%, transparent); background: color-mix(in srgb, var(--w1) 10%, transparent); color: var(--w1-ink); font: 500 10.5px/1.5 var(--mono); }
+.lgtag.s { border-color: color-mix(in srgb, var(--w3) 55%, transparent); background: color-mix(in srgb, var(--w3) 14%, transparent); color: var(--w3-ink); }
+.lgframe { display: block; width: 100%; height: 560px; margin: 10px 0 0; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.lglinks { margin: 0; padding: 0; list-style: none; }
+.lglinks li { padding: 8px 0; border-top: 1px solid var(--line2); font-size: 13px; line-height: 1.45; }
+.lglinks li:first-child { border-top: 0; }
+.lglinks a { color: var(--cyan-ink); }
+.lglinks small { display: block; color: var(--muted); font-size: 12px; }
+
+/* Startseite: Abschnitt "Aktuelle Lage" */
+.lage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+.lage-card { padding: 20px; border-radius: 18px; border: 1px solid var(--line); background: rgba(255, 255, 255, .03); }
+
+/* Behörden und Gesundheit: aufklappbare Abschnitte */
+.lgdet { border-top: 1px solid var(--line2); margin-top: 8px; padding-top: 4px; }
+.lgdet summary { cursor: pointer; padding: 8px 0; font: 600 13px/1.4 var(--sans); color: var(--cyan-ink); }
+.lgdet summary:hover { color: var(--ink); }
+.lglinks li b { font-weight: 600; }
+.lglinks li a + small, .lglinks li small + a { margin-top: 2px; }

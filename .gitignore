@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.part
+*.log
+
+# Rohdaten und Zustand (entstehen beim Aufbau, teils mehrere hundert MB)
+data/raw/*
+!data/raw/.gitkeep
+data/state/*
+!data/state/.gitkeep
+
+# Erzeugte Seitendaten, Luftbilder und Seiten entstehen beim Bauen (python scripts/erstaufbau.py)
+site/data/*
+!site/data/.gitkeep
+site/img/*
+!site/img/.gitkeep
+site/index.html
+site/karte.html
+
+# Eigene Ergaenzungen des Betreibers (Korrekturen, Zusatzdaten) gehoeren nicht in die Vorlage
+data/ergaenzung/*
+!data/ergaenzung/.gitkeep

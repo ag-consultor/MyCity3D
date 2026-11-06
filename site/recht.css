@@ -1,0 +1,21 @@
+/* Impressum und Datenschutz im Nachtflug-Design, wie Startseite und Karte. Schriften und Farbvariablen: fonts.css (muss vorher eingebunden sein). */
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink2); font: 400 15px/1.7 var(--sans); -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background:
+  radial-gradient(ellipse 55% 45% at 70% 12%, rgba(24, 80, 130, .55), transparent 70%),
+  radial-gradient(ellipse 40% 35% at 10% 85%, rgba(90, 40, 140, .3), transparent 70%),
+  linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 48px 48px,
+  linear-gradient(90deg, rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 48px 48px, var(--bg); }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+.wrap { max-width: 50rem; margin: clamp(12px, 4vw, 40px) auto; padding: clamp(18px, 4vw, 36px); border-radius: 22px; background: var(--glass); border: 1px solid var(--line); box-shadow: var(--shadow);
+  backdrop-filter: blur(22px) saturate(1.6); -webkit-backdrop-filter: blur(22px) saturate(1.6); }
+.back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 1.5rem; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--cyan-line); background: var(--cyan-bg); color: var(--cyan-ink); font: 500 12px/1 var(--mono); text-decoration: none; }
+.back:hover { box-shadow: 0 0 22px rgba(13, 226, 235, .3); }
+a { color: var(--cyan-ink); text-underline-offset: 3px; }
+h1 { margin: 0 0 1.25rem; color: var(--ink); font: 300 clamp(30px, 5vw, 44px)/1.1 var(--sans); letter-spacing: -.03em; }
+h2 { margin: 2rem 0 .4rem; color: var(--ink); font: 600 1.1rem/1.35 var(--sans); letter-spacing: -.01em; }
+p, li { margin: .5rem 0; }
+ul { padding-left: 1.3rem; }
+b, strong { color: var(--ink); font-weight: 600; }
+.foot { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line2); color: var(--muted); font-size: .85rem; }

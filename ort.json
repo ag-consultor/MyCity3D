@@ -1,0 +1,67 @@
+{
+  "_hinweis": "Einzige Datei, die du fuer deinen Ort anpassen musst. Die Werte sind ein lauffaehiges Beispiel (Niedergoersdorf, Brandenburg, Kopie in beispiele/). Ersetzen durch deinen Ort. Danach: python scripts/ort_pruefen.py",
+  "name": "Niedergörsdorf",
+  "name_ascii": "Niedergoersdorf",
+  "art": "Gemeinde",
+  "untertitel": "Karte der Gemeinde",
+  "kurzbeschreibung": "Die Gemeinde Niedergörsdorf als interaktive 3D-Karte aus offenen Daten: Gebäude, Adresssuche, Orte, Haltestellen, Veranstaltungen und Sonnenstand.",
+  "kontakt_ua": "MyCity3D (Kontakt: deine@mailadresse.de)",
+  "geo": {
+    "lat0": 51.951,
+    "lon0": 12.948,
+    "kachel_m": 2000,
+    "osm_relation": 422460,
+    "gemeindeschluessel": "12072297",
+    "wetter_lat": 51.95,
+    "wetter_lon": 12.95,
+    "umgrenzung_sued_west_nord_ost": [
+      51.867,
+      12.77,
+      52.035,
+      13.127
+    ]
+  },
+  "nachbarort": {
+    "_hinweis": "Optional. Auf null setzen, wenn kein Nachbarort mit aufgenommen werden soll.",
+    "name": "Jüterbog",
+    "bbox_sued_west_nord_ost": [
+      51.98,
+      13.042,
+      52.003,
+      13.09
+    ],
+    "mitte_lat_lon": [
+      51.9919,
+      13.0757
+    ],
+    "haltestellen": [
+      "Jüterbog, Bahnhof",
+      "Jüterbog, Busbahnhof"
+    ]
+  },
+  "land": {
+    "_hinweis": "Luftbild, Gebaeude und Adressen kommen aus den Geodiensten des Bundeslandes. Fertig verdrahtet ist nur Brandenburg. Fuer andere Laender muessen die Dienste in scripts/fetch.py angepasst werden (siehe docs/ANDERES-BUNDESLAND.md).",
+    "name": "Brandenburg",
+    "kennung": "BB"
+  },
+  "fahrplan": {
+    "_hinweis": "GTFS-Sollfahrplan (zip) und Live-Schnittstelle (transport.rest-Instanzen, HAFAS). Fuer ganz Deutschland: gtfs.de, Live nur wenn eine Instanz fuer dein Netz erreichbar ist.",
+    "gtfs_url": "https://unternehmen.vbb.de/gtfs",
+    "betreiber": "Verkehrsverbund Berlin-Brandenburg (VBB)",
+    "lizenz": "CC BY 4.0",
+    "lizenz_url": "https://unternehmen.vbb.de/digitale-services/datensaetze/",
+    "haltestellen_praefix": "de:12072",
+    "live_hosts": [
+      "https://v6.bvg.transport.rest",
+      "https://v6.vbb.transport.rest"
+    ],
+    "live_aus": false,
+    "betreiber_kurz": "VBB"
+  },
+  "veroeffentlichung": {
+    "impressum_url": "",
+    "datenschutz_url": "",
+    "winscp_sitzung": "meine-karte",
+    "zielordner": "/mein-ordner"
+  }
+}

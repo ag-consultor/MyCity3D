@@ -1,0 +1,10 @@
+# WinSCP-Vorschau: zeigt, was hochgeladen WUERDE, ohne etwas zu uebertragen.
+# Gestartet mit: scripts\veroeffentlichen.bat vorschau
+option batch abort
+option confirm off
+open %2%
+cd %3%
+# %1% = voller Pfad zu site\, %2% = WinSCP-Sitzungsname, %3% = Zielordner (alles aus ort.json, von veroeffentlichen.bat uebergeben)
+synchronize remote -preview -criteria=time,size -filemask="|*.part" "%1%" .
+close
+exit

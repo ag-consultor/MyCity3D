@@ -1,0 +1,2 @@
+# Windows-Stapeldateien brauchen CRLF, sonst findet cmd.exe Sprungmarken nicht
+*.bat text eol=crlf
