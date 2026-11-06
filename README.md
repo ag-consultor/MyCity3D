@@ -63,7 +63,7 @@ docs/                 Anleitungen
 
 ## Lizenz und Quellenpflichten
 
-Der Code steht unter der **MIT-Lizenz** (`LICENSE`): freie Nutzung und Veränderung, der Urheberhinweis muss erhalten bleiben.
+Der Code steht unter der **Apache-Lizenz 2.0** (`LICENSE`): freie Nutzung, Veränderung und Weitergabe, auch gewerblich. Wer weitergibt, legt den Lizenztext und die Datei `NOTICE` bei und kennzeichnet geänderte Dateien. Die Lizenz enthält eine Patentklausel.
 
 Die **Daten** haben eigene Lizenzen, deren Hinweise auf der Seite stehen und nicht entfernt werden dürfen: LGB und Landesbetrieb Straßenwesen (dl-de/by-2-0, Daten geändert), OpenStreetMap-Mitwirkende (ODbL), Fahrplan des Verkehrsverbunds (hier CC BY 4.0), Open-Meteo (CC BY 4.0), DWD (GeoNutzV). Mitgeliefert und unter eigener Lizenz: three.js (MIT), Sora und JetBrains Mono (SIL OFL 1.1).
 
