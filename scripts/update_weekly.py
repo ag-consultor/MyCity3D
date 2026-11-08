@@ -147,6 +147,11 @@ def main():
         run("prepare_fahrplan.py")
         run("prepare_fahrten.py", must=False)  # Fahrten fuer Fahrzeuge auf der Karte; faellt es aus, bleibt der alte Stand
     run("prepare_gemeinde.py")
+    run("fetch_notfall.py", must=False)  # Loeschwasser, Sirenen, Anlagen, Freizeit aus OSM (bausteine.notfall; Overpass kann haengen: alter Stand bleibt)
+    run("prepare_landwirt.py", must=False)  # Bodenfeuchte der naechsten DWD-Station (bausteine.landwirtschaft; taeglich: scripts/taeglich.bat)
+    run("fetch_waldbrand.py", must=False)  # Waldbrandstufe (bausteine.waldbrand, nur Brandenburg; taeglich: scripts/taeglich.bat)
+    run("fetch_touren.py", must=False)  # Rad-, Wander- und Skate-Routen aus OSM (bausteine.touren)
+    run("fetch_klima.py", must=False)  # Klima-Monatswerte der DWD-Stationen (bausteine.klima; aendern sich monatlich)
 
     new = snapshot()
     old = json.load(open(STATE, encoding="utf-8")) if os.path.exists(STATE) and "--no-state" not in a else None

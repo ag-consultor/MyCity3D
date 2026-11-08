@@ -16,6 +16,7 @@ site/img/*
 !site/img/.gitkeep
 site/index.html
 site/karte.html
+site/touren.html
 
 # Eigene Ergaenzungen des Betreibers (Korrekturen, Zusatzdaten) gehoeren nicht in die Vorlage
 data/ergaenzung/*

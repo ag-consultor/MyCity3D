@@ -137,6 +137,43 @@ def run():
     col = np.where(d >= 0, 255, 0).astype(np.uint8)
     rgba = np.dstack([col, col, col, alpha])
     Image.fromarray(rgba, "RGBA").save(os.path.join(IMG, "relief.png"), optimize=True)
+    # Hangneigung (Grad, aus dem 10-m-Raster) als Farbklassen
+    sl = np.degrees(np.arctan(np.hypot(dzdx, dzdz)))
+    KL = [(0.5, (0, 0, 0, 0)), (1.0, (120, 205, 120, 120)), (2.0, (240, 215, 70, 150)), (4.0, (240, 140, 50, 170)), (1e9, (205, 50, 50, 190))]
+    hang = np.zeros(sl.shape + (4,), dtype=np.uint8)
+    lo = 0.0
+    for hi, c in KL:
+        m = (sl >= lo) & (sl < hi)
+        hang[m] = c
+        lo = hi
+    hang[nod] = 0
+    Image.fromarray(hang, "RGBA").save(os.path.join(IMG, "hang.png"), optimize=True)
+    # Senken: Tiefe unterhalb der Ueberlaufhoehe (Senken-Fuellung auf einem 20-m-Raster), Schaetzung aus dem Gelaendemodell
+    from scipy.ndimage import minimum_filter
+    f2 = 2
+    h2, w2 = (g.shape[0] // f2) * f2, (g.shape[1] // f2) * f2
+    g2 = g[:h2, :w2].reshape(h2 // f2, f2, w2 // f2, f2).mean(axis=(1, 3)).astype(np.float32)
+    n2 = nod[:h2, :w2].reshape(h2 // f2, f2, w2 // f2, f2).any(axis=(1, 3))
+    g2[n2] = float(np.nanmin(g2[~n2])) - 50.0  # ausserhalb der Daten: Abfluss
+    F = np.full_like(g2, np.inf)
+    rand = np.zeros(g2.shape, dtype=bool); rand[0, :] = rand[-1, :] = rand[:, 0] = rand[:, -1] = True
+    F[rand] = g2[rand]
+    for it in range(8000):
+        Fn = np.maximum(g2, minimum_filter(F, size=3, mode="nearest"))
+        Fn[rand] = g2[rand]
+        if it % 25 == 24 and np.array_equal(Fn, F):
+            break
+        F = Fn
+    tiefe = np.where(n2, 0, F - g2)
+    t = np.clip((tiefe - 0.3) / 1.7, 0, 1)
+    sen = np.zeros(tiefe.shape + (4,), dtype=np.uint8)
+    m = tiefe >= 0.3
+    sen[..., 0][m] = (150 - 110 * t[m]).astype(np.uint8)
+    sen[..., 1][m] = (205 - 120 * t[m]).astype(np.uint8)
+    sen[..., 2][m] = 255
+    sen[..., 3][m] = (120 + 100 * t[m]).astype(np.uint8)
+    Image.fromarray(sen, "RGBA").save(os.path.join(IMG, "senken.png"), optimize=True)
+    print("Hang/Senken: %.1f %% der Flaeche ueber 1 Grad geneigt, %.2f %% in Senken (>= 0,3 m), tiefste %.1f m, %d Iterationen" % (100 * float((sl > 1).mean()), 100 * float(m.mean()), float(tiefe.max()), it + 1))
     print("Gelaende: %d Gebaeude, %d Orte/Haltestellen/Ortsteile mit Hoehe, relief.png %d x %d, Hoehe %.0f bis %.0f m ueber NHN" % (n_b, n_m, nx, nz, float(np.nanmin(D.a)), float(np.nanmax(D.a))))
     return n_b
 

@@ -11,7 +11,7 @@ import hashlib, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE = os.path.join(ROOT, "site")
-SEITEN = ("index.html", "karte.html", "impressum.html", "datenschutz.html")
+SEITEN = ("index.html", "karte.html", "impressum.html", "datenschutz.html", "touren.html")
 sys.stdout.reconfigure(encoding="utf-8")
 
 
@@ -23,9 +23,10 @@ def kachelkennung():
     for fn in sorted(os.listdir(d)):
         if re.match(r"t_\d+_\d+\.js$", fn) or fn == "areas.js":
             h.update(fn.encode()); h.update(open(os.path.join(d, fn), "rb").read())
-    rp = os.path.join(SITE, "img", "relief.png")
-    if os.path.exists(rp):
-        h.update(open(rp, "rb").read())
+    for nm in ("relief.png", "hang.png", "senken.png"):
+        rp = os.path.join(SITE, "img", nm)
+        if os.path.exists(rp):
+            h.update(open(rp, "rb").read())
     txt = 'window.AL_TV="%s";\n' % h.hexdigest()[:8]
     p = os.path.join(d, "tv.js")
     if not os.path.exists(p) or open(p, encoding="utf-8").read() != txt:

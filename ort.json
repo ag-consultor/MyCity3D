@@ -67,10 +67,16 @@
     "impressum_url": "",
     "datenschutz_url": "",
     "winscp_sitzung": "meine-karte",
-    "zielordner": "/mein-ordner"
+    "zielordner": "/mein-ordner",
+    "urheber": {
+      "_hinweis": "Optional: Urheberzeile in den Fusszeilen. Leer lassen = keine Zeile.",
+      "name": "",
+      "link_text": "",
+      "link_url": ""
+    }
   },
   "bausteine": {
-    "_hinweis": "Optionale Bausteine. baustellen und gelaende gibt es nur fuer Brandenburg (Dienste des Landes), fuer andere Laender auf false lassen. muellabfuhr: Einbettung der Abfuhrabfrage des oertlichen Entsorgers (Adresse des Formulars, das er selbst auf seiner Seite einbettbar anbietet); null = keine Muellabfuhr. Das Beispiel gilt fuer Suedbrandenburg (SBAZV). Fremde Formulare setzen oft ein Cookie: in der Datenschutzerklaerung nennen. solar_kwh_je_kwp: Jahresertrag je kWp bei bester Ausrichtung fuer die Solar-Schaetzung (Mitteldeutschland etwa 980).",
+    "_hinweis": "Optionale Bausteine, jeder einzeln abschaltbar (false oder null). Nur fuer Brandenburg: baustellen, gelaende, waldbrand (Seite des Landesministeriums), meldeportal im Beispiel (Maerker). Fuer ganz Deutschland: landwirtschaft (DWD, naechste Station), notfall (Loeschwasser, Sirenen, Anlagen, Freizeit, Strassenlampen aus OSM), klima (DWD-Stationen, Liste von Hand), ortsgeschichte (Wikipedia), touren (OSM; wikivoyage = Artikeltitel oder null), webcam (DWD-Bilderserver), drohnenhinweis (Verweis auf dipul). muellabfuhr: Einbettung der Abfuhrabfrage des oertlichen Entsorgers (Adresse des Formulars, das er selbst einbettbar anbietet); null = keine. Das Beispiel gilt fuer Suedbrandenburg (SBAZV). Fremde Formulare setzen oft ein Cookie: in der Datenschutzerklaerung nennen. solar_kwh_je_kwp: Jahresertrag je kWp bei bester Ausrichtung fuer die Solar-Schaetzung (Mitteldeutschland etwa 980). Jeder eingeschaltete Dienst im Browser steht auch im Hinweisfenster der Live-Daten und in der Inhaltsrichtlinie (scripts/baue_seiten.py). Quellen und Lizenzen: docs/DATENQUELLEN.md.",
     "baustellen": true,
     "gelaende": true,
     "muellabfuhr": {
@@ -80,6 +86,54 @@
       "anleitung": "Ort oder Ortsteil wählen, dann Straße und Hausnummer.",
       "hinweis": "Der SBAZV setzt dabei ein Sitzungs-Cookie."
     },
-    "solar_kwh_je_kwp": 980
+    "solar_kwh_je_kwp": 980,
+    "landwirtschaft": true,
+    "waldbrand": {
+      "kreis": "Teltow-Fläming",
+      "url": "https://mleuv.brandenburg.de/mleuv/de/umwelt/forst/waldschutz/waldbrandgefahr-in-brandenburg/waldbrandgefahrenstufen/",
+      "quelle": "Ministerium für Landwirtschaft, Umwelt und Klimaschutz des Landes Brandenburg (MLEUV)"
+    },
+    "notfall": true,
+    "ortsgeschichte": true,
+    "touren": {
+      "wikivoyage": null
+    },
+    "klima": {
+      "stationen": [
+        [
+          "02856",
+          "Niedergörsdorf-Langenlipsdorf",
+          10.3,
+          "in der Gemeinde"
+        ],
+        [
+          "05629",
+          "Wittenberg",
+          21.9,
+          "22 km entfernt"
+        ],
+        [
+          "02475",
+          "Jüterbog",
+          11.8,
+          "12 km entfernt"
+        ]
+      ]
+    },
+    "webcam": {
+      "url": "https://opendata.dwd.de/weather/webcam/Lindenberg-NNE/Lindenberg-NNE_latest_",
+      "name": "Meteorologisches Observatorium Lindenberg (Falkenberg)",
+      "blick": "Nord-Nordost",
+      "entfernung_km": 85
+    },
+    "meldeportal": {
+      "name": "Maerker Brandenburg",
+      "url": "https://maerker.brandenburg.de/",
+      "app": "https://maerker.brandenburg.de/maerker/de/maerker-app/",
+      "betreiber": "Land Brandenburg (ZIT-BB)",
+      "nutzungsbedingungen": "https://maerker.brandenburg.de/maerker/de/nutzungsbedingungen/",
+      "beschreibung": "Defekte Straßenlampe, Schlagloch, wilde Müllkippe, beschädigtes Schild: Hinweise zur kommunalen Infrastruktur gehen an die Kommune, auf Wunsch auch anonym."
+    },
+    "drohnenhinweis": true
   }
 }
