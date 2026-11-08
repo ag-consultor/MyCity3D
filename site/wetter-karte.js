@@ -12,7 +12,7 @@
     chip.setAttribute('aria-label', 'Wetter einblenden');
     pop.innerHTML = '<div class="big"><span style="font-size:20px">Wetter einblenden?</span></div>'
       + '<p>Aktuelle Werte, Vorhersage, amtliche Warnungen und Regen- oder Schneeeffekte auf der Karte, Daten vom Deutschen Wetterdienst.</p>'
-      + '<p>Dafür verbindet sich Ihr Browser mit <b>api.brightsky.dev</b> (freie Schnittstelle auf DWD-Daten). Dabei wird Ihre IP-Adresse an diesen Dienst übertragen. Ohne Zustimmung findet keine Verbindung statt. Mehr in der <a href="datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a>.</p>'
+      + '<p>Dafür verbindet sich Ihr Browser mit <b>api.brightsky.dev</b> (freie Schnittstelle auf DWD-Daten)' + ((window.ORT || {}).webcam ? ' und für die Webcam-Vorschau mit <b>' + String(window.ORT.webcam.url).replace(/^https?:\/\//, '').split('/')[0] + '</b>' : '') + '. Dabei wird Ihre IP-Adresse an diesen Dienst übertragen. Ohne Zustimmung findet keine Verbindung statt.' + ((window.ORT || {}).datenschutz ? ' Mehr in der <a href="' + window.ORT.datenschutz + '" target="_blank" rel="noopener">Datenschutzerklärung</a>.' : '') + '</p>'
       + '<p><button class="wxbtn" id="wxOkK" type="button">Wetter einblenden</button></p>';
   } else {
     chip.innerHTML = A.svg(W.icon, 16) + '<span>' + A.temp(W.temp) + '</span>';
@@ -22,7 +22,7 @@
     chip.setAttribute('aria-label', 'Wetter: ' + A.summary() + (wl ? ', amtliche Warnung' : '') + ', Details öffnen');
     pop.innerHTML = '<div class="big">' + A.svg(W.icon, 30) + '<span>' + A.temp(W.temp) + '</span><small>' + A.text(W.icon) + '</small></div>'
       + A.warnHtml(true) + '<p>' + A.details() + '</p><div class="wxstrip">' + A.forecastHtml(6) + '</div>'
-      + (A.hasMovingEffect() ? '<label><input type="checkbox" id="wxFxK"> Wettereffekte auf der Karte</label>' : '')
+      + A.rainHtml(true) + A.webcamHtml(true) + (A.hasMovingEffect() ? '<label><input type="checkbox" id="wxFxK"> Wettereffekte auf der Karte</label>' : '')
       + '<p>' + A.sourceHtml() + ' ' + A.stand() + '</p><p><a href="#" id="wxOffK">Wetter ausblenden</a></p>';
   }
   document.body.appendChild(pop);

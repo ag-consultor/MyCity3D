@@ -47,3 +47,73 @@
 .lgdlg b { color: var(--ink); font-weight: 600; }
 .lgdlg a { color: var(--cyan-ink); }
 .lgbtns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+/* Landwirtschaft und Sicherheit: Bodenfeuchte, Waldbrand, Maerker */
+.agr-soil { margin: 4px 0 10px; }
+.agr-row { display: grid; grid-template-columns: minmax(0, 1.3fr) auto auto; gap: 2px 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line2); font-size: 13px; }
+.agr-row:first-child { border-top: 0; }
+.agr-n { display: flex; align-items: center; gap: 7px; color: var(--ink2); }
+.agr-n i, .agr-leg i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.agr-row b { font: 500 15px/1 var(--mono); }
+.agr-k { font-size: 12px; text-align: right; min-width: 6.5em; }
+.agr-bar { grid-column: 1 / -1; height: 4px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.agr-bar i { display: block; height: 100%; border-radius: 3px; }
+.agr-svg { display: block; width: 100%; height: auto; margin-top: 8px; }
+.agr-g { stroke: rgba(255, 255, 255, .14); stroke-width: 1; stroke-dasharray: 3 3; }
+.agr-t { fill: var(--muted); font: 400 9px/1 var(--mono); }
+.agr-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 11.5px; color: var(--ink2); }
+.agr-leg span { display: inline-flex; align-items: center; gap: 5px; }
+.agr-leg .agr-hint { color: var(--muted); }
+.agr-extra { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line2); font-size: 12px; color: var(--muted); }
+.agr-extra b { color: var(--ink); font-weight: 500; font-family: var(--mono); }
+.lage-card .wxbtn { display: inline-block; text-decoration: none; }
+.agr-soil { display: flex; flex-wrap: wrap; gap: 6px; }
+.agr-soil .chip { font: 400 12px/1.2 var(--sans); color: var(--ink2); background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.agr-soil .chip:hover { background: rgba(255, 255, 255, .1); }
+.agr-soil .chip.on { background: var(--cyan-bg); border-color: var(--cyan-line); color: var(--cyan-ink); }
+
+#agrAktuell .lg + .lg { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line2); }
+#agrAktuell { margin-bottom: 14px; }
+
+/* Klima im Rueckblick */
+.klima-card { grid-column: 1 / -1; }
+.kl-st { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.kl-st .chip { font: 400 12px/1.2 var(--sans); color: var(--ink2); background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.kl-st .chip small { color: var(--muted); }
+.kl-st .chip:hover { background: rgba(255, 255, 255, .1); }
+.kl-st .chip.on { background: var(--cyan-bg); border-color: var(--cyan-line); color: var(--cyan-ink); }
+.kl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 28px; }
+.kl-h { margin: 14px 0 6px; font: 600 12px/1.3 var(--mono); letter-spacing: .03em; color: var(--cyan-ink); }
+.kl-svg { display: block; width: 100%; height: auto; }
+.kl-g { stroke: rgba(255, 255, 255, .13); stroke-width: 1; stroke-dasharray: 3 3; }
+.kl-t { fill: var(--muted); font: 400 9.5px var(--mono); }
+.kl-s { margin: 4px 0 0; font-size: 11.5px; color: var(--muted); }
+.kl-facts { margin: 12px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.55; color: var(--ink2); }
+.kl-facts b { color: var(--ink); font-weight: 600; }
+.kl-tab { width: 100%; max-width: 520px; border-collapse: collapse; font-size: 12.5px; }
+.kl-tab th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line2); }
+.kl-tab td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line2); font-family: var(--mono); }
+.kl-tab small { color: var(--muted); }
+
+/* Touren */
+.tr-title { margin: 6px 0 10px; font: 300 clamp(30px, 4.6vw, 52px)/1.08 var(--sans); letter-spacing: -.02em; }
+.tr-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px 28px; align-items: start; }
+@media (max-width: 860px) { .tr-grid { grid-template-columns: 1fr; } }
+.tr-svg { display: block; width: 100%; height: auto; border-radius: 14px; background: rgba(8, 15, 28, .6); border: 1px solid var(--line); }
+.tr-o { fill: var(--ink2); font: 500 9px var(--sans); paint-order: stroke; stroke: rgba(6, 13, 26, .85); stroke-width: 2.5px; pointer-events: none; }
+.tr-s { margin: 6px 0 10px; font-size: 11.5px; color: var(--muted); }
+.tr-h { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font: 600 12px/1.3 var(--mono); letter-spacing: .04em; color: var(--cyan-ink); }
+.tr-h:first-child { margin-top: 0; }
+.tr-h i { width: 12px; height: 4px; border-radius: 2px; display: inline-block; }
+.tr-list { margin: 0; padding: 0; list-style: none; }
+.tr-list li { border-top: 1px solid var(--line2); }
+.tr-list li:first-child { border-top: 0; }
+.tr-b { display: block; width: 100%; text-align: left; padding: 8px 6px; background: none; border: 0; border-radius: 8px; color: var(--ink); font: 400 13px/1.4 var(--sans); cursor: pointer; }
+.tr-b:hover, .tr-b.on { background: rgba(255, 255, 255, .06); }
+.tr-b .tr-km { display: block; color: var(--cyan-ink); font: 400 12px var(--mono); }
+.tr-b small { color: var(--muted); }
+.tr-b .tr-sub { display: block; font-size: 11.5px; }
+.tr-w { display: inline-block; margin: 0 6px 8px; font-size: 12px; color: var(--cyan-ink); }
+.tr-fact { margin: 16px 0 4px; font-size: 14px; color: var(--ink2); }
+.tr-fact b { color: var(--ink); }
+.ge { margin: 0 0 8px; font-size: 13px; line-height: 1.55; color: var(--ink2); max-width: 70ch; }

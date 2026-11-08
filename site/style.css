@@ -238,3 +238,16 @@ dialog li { margin: 6px 0; }
 /* Hinweis nach Aktionen (z. B. Link kopiert) */
 .toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); padding: 9px 16px; border-radius: 999px; border: 1px solid var(--cyan-line); background: rgba(15, 23, 36, .92); color: var(--cyan-ink); font: 500 13px/1.3 var(--sans); z-index: 30; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); pointer-events: none; }
 .toast[hidden] { display: none; }
+
+/* Landwirtschaft und Sicherheit: Marker und Rubrik in den Ebenen */
+.layers .layhead { margin: 14px 0 4px; padding-top: 10px; border-top: 1px solid var(--line2); font: 600 11px/1.3 var(--mono); letter-spacing: .05em; color: var(--cyan-ink); text-transform: uppercase; }
+.layers .chip { margin-top: 8px; }
+.mk.nf { background: var(--c, #d04a4a); color: #fff; font: 700 11px/1 var(--mono); padding: 3px 5px; min-width: 20px; text-align: center; border: 1.5px solid #fff; border-radius: 50%; box-shadow: 0 1px 6px rgba(0, 0, 0, .55); }
+.mk.nf.big { font-size: 14px; border-radius: 9px; padding: 3px 6px; }
+.legend hr { border: 0; border-top: 1px solid var(--line2); margin: 8px 0; }
+
+.colorpanel { max-height: calc(100vh - 170px); overflow-y: auto; }
+
+/* Ortsgeschichte (Wikipedia-Text in der Ortsteil-Karte) */
+.ge-h { margin: 14px 0 4px; font: 600 12px/1.3 var(--mono); letter-spacing: .04em; color: var(--cyan-ink); }
+.ge { margin: 0 0 8px; font-size: 13px; line-height: 1.55; color: var(--ink2); }

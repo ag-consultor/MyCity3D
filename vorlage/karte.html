@@ -12,9 +12,9 @@
 <meta name="theme-color" content="#060d1a">
 <meta name="color-scheme" content="dark">
 <link rel="stylesheet" href="fonts.css?v=ddbc90c1">
-<link rel="stylesheet" href="wetter.css?v=1e686de1">
-<link rel="stylesheet" href="lage.css?v=c6612925">
-<link rel="stylesheet" href="style.css?v=45a87d12">
+<link rel="stylesheet" href="wetter.css?v=2eb36b48">
+<link rel="stylesheet" href="lage.css?v=5b8cae6a">
+<link rel="stylesheet" href="style.css?v=7dbb4834">
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -31,7 +31,7 @@
     <div id="qres" class="scroll" hidden></div>
   </div>
   <select id="otSel" class="menu-select" aria-label="Ortsteil wählen"><option value="">Ortsteil wählen …</option></select>
-  <div class="tags"><span class="tagp">22 Ortsteile</span><span class="tagp cy">Prototyp</span></div>
+  <div class="tags"><span class="tagp" id="otCount">Ortsteile</span></div>
 </header>
 
 <details class="colorpanel glass" id="colorpanel" open>
@@ -45,6 +45,7 @@
     <label><input type="radio" name="colormode" value="einheitlich"><span>Einheitlich</span></label>
   </div>
   <div id="legend" class="legend" hidden></div>
+  <div id="legend2" class="legend" hidden></div>
 </details>
 
 <div class="ctrl" role="group" aria-label="Ansicht">
@@ -80,9 +81,21 @@
     <label><input type="checkbox" data-layer="fahrzeuge" checked><span>Fahrzeuge live<small class="lstate" id="fzState"></small></span></label>
     <label><input type="checkbox" data-layer="events" checked><span>Veranstaltungen</span></label>
     <label id="wolkenRow" hidden><input type="checkbox" data-layer="wolken" checked><span>Wolken (Wetter)</span></label>
-    <label><input type="checkbox" data-layer="relief"><span>Geländerelief (überhöht)</span></label>
-    <label><input type="checkbox" data-layer="shadows" checked><span>Schatten</span></label>
-  </div>
+    <!--IF gelaende--><label><input type="checkbox" data-layer="relief"><span>Geländerelief (überhöht)</span></label>
+    <!--ENDIF-->    <label><input type="checkbox" data-layer="shadows" checked><span>Schatten</span></label>
+    <!--IF ebenen--><h3 class="layhead">Landwirtschaft und Sicherheit</h3>
+    <!--ENDIF-->    <!--IF gelaende--><label><input type="checkbox" data-layer="hang"><span>Hangneigung (Geländeanalyse)</span></label>
+    <!--ENDIF-->    <!--IF gelaende--><label><input type="checkbox" data-layer="senken"><span>Geländesenken (Geländeanalyse)</span></label>
+    <!--ENDIF-->    <!--IF notfall--><label><input type="checkbox" data-layer="notfall"><span>Löschwasser (Hydranten, Brunnen, Teiche)</span></label>
+    <label><input type="checkbox" data-layer="sirenen"><span>Sirenen</span></label>
+    <label><input type="checkbox" data-layer="energie"><span>Windräder, Biogas, Solarparks</span></label>
+    <label><input type="checkbox" data-layer="flug"><span>Flugplätze (Hinweis für Drohnen)</span></label>
+    <label><input type="checkbox" data-layer="freizeit"><span>Freizeit und Kultur (Spielplätze, Sport, Denkmale, Tafeln)</span></label>
+    <label><input type="checkbox" data-layer="alltag"><span>Alltag (Bänke, Trinkwasser, Toiletten, Ladesäulen …)</span></label>
+    <label><input type="checkbox" data-layer="lampen"><span>Straßenlampen<!--IF meldeportal--> (Mängel über {{MELDEPORTAL_NAME}} melden)<!--ENDIF--></span></label>
+    <!--ENDIF-->    <!--IF touren--><label><input type="checkbox" data-layer="touren"><span>Touren (Rad, Wandern, Skaten)</span></label>
+    <!--ENDIF-->    <!--IF bodenfeuchte--><button type="button" class="chip" id="openAgrar">Bodenfeuchte und Agrarwetter</button>
+    <!--ENDIF-->  </div>
 </section>
 
 <section class="panel glass" id="panel-events" hidden>
@@ -112,7 +125,7 @@
 <section class="panel glass" id="panel-traffic" hidden>
   <button class="x" aria-label="Schließen" data-close="panel">×</button>
   <h2>Aktuell</h2>
-  <div class="scroll"><div id="trafficBody"></div><div id="bauBox" class="live"></div><div id="muellBox" class="live"></div></div>
+  <div class="scroll"><div id="agrAktuell" class="live"></div><div id="trafficBody"></div><div id="bauBox" class="live"></div><div id="muellBox" class="live"></div></div>
 </section>
 
 <section class="panel glass" id="panel-news" hidden>
@@ -158,14 +171,14 @@
   <button class="pill" data-panel="sources"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg><span>Quellen</span></button>
 </nav>
 
-<footer class="attr">© GeoBasis-DE/LGB, dl-de/by-2-0 (Daten geändert) · © OpenStreetMap-Mitwirkende · Fahrplan: {{BETREIBER_KURZ}}, {{FAHRPLAN_LIZENZ}} · <span id="stand">Stand: …</span><span id="legal"></span></footer>
+<footer class="attr">© GeoBasis-DE/LGB, dl-de/by-2-0 (Daten geändert) · © OpenStreetMap-Mitwirkende · Fahrplan: {{BETREIBER_KURZ}}, {{FAHRPLAN_LIZENZ}}{{URHEBER_ATTR_HTML}} · <span id="stand">Stand: …</span><span id="legal"></span></footer>
 <div id="loading">{{NAME}} wird geladen …</div>
 
 <script src="js/three.min.js?v=f76d110b"></script>
 <script src="js/util.js?v=98e4ab46"></script>
 <script src="data/ort.js"></script>
-<script src="data/tv.js?v=970dba44"></script>
-<script src="data/meta.js?v=5eca6de0"></script>
+<script src="data/tv.js?v=0d8575b8"></script>
+<script src="data/meta.js?v=27da47c7"></script>
 <script src="data/addr.js?v=b54dff98"></script>
 <script src="data/fahrplan.js?v=7547bea3"></script>
 <script src="data/brw.js?v=5af3057c"></script>
@@ -174,12 +187,18 @@
 <script src="events.js?v=54a15585"></script>
 <script src="data/events_auto.js?v=c35e6a8b"></script>
 <script src="rechtliches.js?v=492551aa"></script>
-<script src="wetter.js?v=7ec3b4fc"></script>
-<script src="wetter-karte.js?v=c8931405"></script>
+<script src="wetter.js?v=bbc22eec"></script>
+<script src="wetter-karte.js?v=e23f5a44"></script>
 <script src="lage.js?v=352dcf81"></script>
 <script src="data/gleise.js?v=fd79b113"></script>
 <script src="data/fahrten.js?v=b8d8086f"></script>
-<script src="js/app.js?v=b8a1c61e"></script>
-<script src="live-alle.js?v=65b9e378"></script>
+<!--IF bodenfeuchte--><script src="data/landwirt.js?v=7e81dd1f"></script>
+<!--ENDIF--><!--IF waldbrand--><script src="data/waldbrand.js?v=a5e06eb7"></script>
+<!--ENDIF--><!--IF notfall--><script src="data/notfall.js?v=965083e2"></script>
+<!--ENDIF--><!--IF geschichte--><script src="data/ortsgeschichte.js?v=4d416c51"></script>
+<!--ENDIF--><!--IF touren--><script src="data/touren.js?v=3b326718"></script>
+<!--ENDIF--><script src="landwirt.js?v=5d39a1bd"></script>
+<script src="js/app.js?v=2f5409be"></script>
+<script src="live-alle.js?v=bee69b07"></script>
 </body>
 </html>

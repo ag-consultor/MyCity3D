@@ -23,12 +23,13 @@
   // ------------------------------------------------------------------ Zustand
   const S = {
     dirty: true, moved: true, colorMode: 'nutzung', sel: null, pending: null, panel: null,
-    L: { photo: true, buildings: true, trees: true, places: true, stops: true, fahrzeuge: true, events: true, labels: true, borders: true, roads: false, shadows: true, brw: false, wolken: true, relief: false },
+    L: { photo: true, buildings: true, trees: true, places: true, stops: true, fahrzeuge: true, events: true, labels: true, borders: true, roads: false, shadows: true, brw: false, wolken: true, relief: false, hang: false, senken: false, notfall: false, sirenen: false, energie: false, flug: false, freizeit: false, alltag: false, lampen: false, touren: false },
     sun: { y: 2026, mo: 6, d: 21, min: 14 * 60 }, playing: false, spot: null, evFilter: '30', evCats: new Set(), evArea: 'all', plSel: new Set(), plArea: 'gem', dim: 1,
   };
 
   const CL = { mesh: null, ok: false }; // Wolkenebene (nur mit eingeblendeten Wetterdaten)
-  const RL = { mesh: null }; // Geländerelief (Schummerung aus dem DGM), wird erst beim Einschalten geladen
+  const TR = { mesh: null, mat: null, built: false }; // Touren-Bänder (data/touren.js)
+  const OVL = [{ k: 'relief', o: 2 }, { k: 'hang', o: 3 }, { k: 'senken', o: 4 }]; // Bildebenen aus dem Geländemodell (img/<name>.png)
   const nfH = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   // ------------------------------------------------------------------ Renderer / Szene
@@ -456,6 +457,7 @@
   Object.assign(S.sun, { y: today.y, mo: today.mo, d: today.d, min: today.h * 60 + today.mi }); // Sonnenstand beginnt mit dem Datum und der Uhrzeit des Seitenaufrufs
   const dateFmt = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   const longFmt = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  { const oc = $('#otCount'); if (oc) oc.textContent = OT.length + ' Ortsteile'; }
   const otNied = OT.findIndex((o) => o.n.indexOf(ORT_NAME) === 0);
   const EV = EVENTS.map((e) => {
     const base = e.date ? e.date.split('-').map(Number) : null;
@@ -465,7 +467,7 @@
       x: pl ? pl.x : (nbE ? M.nb.x : (at ? at.x : CX)), z: pl ? pl.z : (nbE ? M.nb.z : (at ? at.z : CZ)), pl });
   }).sort((a, b) => a.t - b.t || a.from.localeCompare(b.from));
 
-  const markersEl = $('#markers'), markers = [];
+  const markersEl = $('#markers'), markers = [], NFD = { notfall: 1400, sirenen: 7000, energie: 10000, flug: 24000, freizeit: 3500, alltag: 1200, lampen: 700 }; // ab welcher Kameraentfernung die Marker erscheinen
   function addMarker(cls, html, wx, wy, wz, onClick, label) {
     const el = document.createElement('div');
     el.className = 'mk ' + cls;
@@ -621,6 +623,11 @@
       el.hidden = false;
       el.innerHTML = '<b>Gebäudenutzung</b>' + ['wohnen', 'gewerbe', 'industrie', 'oeffentlich', 'landwirtschaft', 'neben'].map((k) => lg(WALL[k], USE_DE[k])).join('');
     } else el.hidden = true;
+    const e2 = $('#legend2'), parts = [];
+    if (S.L.hang) parts.push('<b>Hangneigung</b><span class="s">Geländeanalyse aus dem 10-m-Raster</span>' + lg('rgb(120,205,120)', '0,5 bis 1°') + lg('rgb(240,215,70)', '1 bis 2°') + lg('rgb(240,140,50)', '2 bis 4°') + lg('rgb(205,50,50)', 'über 4°'));
+    if (S.L.senken) parts.push('<b>Geländesenken</b><span class="s">Tiefe unter der Überlaufhöhe (20-m-Raster). Auch Teiche, Gruben und Gräben, keine Gefahrenkarte.</span>' + lg('#96cdff', 'ab 0,3 m') + lg('#2c4dd0', 'ab 2 m'));
+    if (S.L.touren) parts.push('<b>Touren</b><span class="s">OpenStreetMap, Verlauf im Gebiet. Mehr unter „Touren“ auf der Startseite.</span>' + lg('#ff5aa5', 'Inline-Skaten') + lg('#3aa0ff', 'Radrouten') + lg('#7fd64f', 'Wanderwege'));
+    e2.hidden = !parts.length; e2.innerHTML = parts.join('<hr>');
   }
   $('#nPlaces').textContent = PLACES.filter((p) => !p.nb).length;
   $('#nEvents').textContent = EV.filter((e) => e.off >= 0 && !e.nbE).length; // Zähler: Gebiet (der Nachbarort steht in der Liste dazu)
@@ -633,11 +640,12 @@
 
   function updateMarkers() {
     const w = canvas.clientWidth, h = canvas.clientHeight, v = new THREE.Vector3(), far = view.dist > 1300;
+    if (TR.mat) TR.mat.uniforms.uW.value = clamp(view.dist * 0.0016, 3.2, 90);
     markers.forEach((m) => {
-      const on = m.cls === 'poi' ? S.L.places && (!S.plSel.size || S.plSel.has(m.grp)) : m.cls === 'ev' ? S.L.events : m.cls === 'ot' ? S.L.labels : m.cls === 'brw' ? S.L.brw : m.cls === 'veh' ? S.L.fahrzeuge : S.L.stops;
+      const on = m.cls === 'nf' ? S.L[m.grp] : m.cls === 'poi' ? S.L.places && (!S.plSel.size || S.plSel.has(m.grp)) : m.cls === 'ev' ? S.L.events : m.cls === 'ot' ? S.L.labels : m.cls === 'brw' ? S.L.brw : m.cls === 'veh' ? S.L.fahrzeuge : S.L.stops;
       v.copy(m.v).project(camera);
       const x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
-      const near = m.cls === 'ot' ? far : m.cls === 'brw' ? view.dist < 12000 : (!far || view.dist < 2600) && camera.position.distanceTo(m.v) < 1900;
+      const near = m.cls === 'nf' ? view.dist < NFD[m.grp] && camera.position.distanceTo(m.v) < NFD[m.grp] * 1.3 : m.cls === 'ot' ? far : m.cls === 'brw' ? view.dist < 12000 : (!far || view.dist < 2600) && camera.position.distanceTo(m.v) < 1900;
       const vis = on && near && v.z < 1 && x > -60 && x < w + 60 && y > -40 && y < h + 40;
       m.el.style.display = vis ? '' : 'none';
       if (vis) m.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translate(-50%,-100%)';
@@ -1419,6 +1427,13 @@
       $$('[data-ev]', cardBody).forEach((b) => { b.onclick = () => showEvent(EV[+b.dataset.ev]); });
     }
   }
+  const GESCH = window.AL_GESCHICHTE && window.AL_GESCHICHTE.orte;
+  function geschichteHtml(name) { // Wikipedia-Text (CC BY-SA 4.0) mit Urhebernennung
+    const g = GESCH && GESCH[name]; if (!g) return '';
+    const txt = g.geschichte || g.text, vers = g.version ? ' (Version vom ' + g.version.slice(8, 10) + '.' + g.version.slice(5, 7) + '.' + g.version.slice(0, 4) + ')' : '';
+    return '<h4 class="ge-h">' + (g.geschichte ? 'Ortsgeschichte' : 'Kurzbeschreibung') + '</h4><p class="ge">' + esc(txt).replace(/\n+/g, '</p><p class="ge">') + '</p>'
+      + '<p class="note">Text aus dem Wikipedia-Artikel <a href="' + esc(g.url) + '" target="_blank" rel="noopener">„' + esc(g.titel) + '“</a>' + vers + ', Autoren siehe <a href="' + esc(g.hist) + '" target="_blank" rel="noopener">Versionsgeschichte</a>, Lizenz <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.de" target="_blank" rel="noopener">CC BY-SA 4.0</a> (gekürzt).</p>';
+  }
   function goOrtsteil(i) {
     const o = OT[i], nA = ROWS.filter((r) => r[4] === i).length, rail = STOPS.filter((s) => s.o === i && s.k === 'rail'), bus = STOPS.filter((s) => s.o === i && s.k === 'bus').length;
     $$('.mk.sel').forEach((m) => m.classList.remove('sel')); o.marker.el.classList.add('sel');
@@ -1431,7 +1446,7 @@
       + '<dt>Adressen</dt><dd>' + nA + '</dd><dt>Gebäude</dt><dd>' + o.nB + '</dd><dt>Bahnhof</dt><dd>' + (rail.length ? esc(rail[0].n) + ' (DB)' : 'keiner') + '</dd>'
       + '<dt>Bushaltepunkte</dt><dd>' + bus + '</dd><dt>Orte</dt><dd>' + PLACES.filter((p) => p.o === i).length + '</dd>'
       + (BRW && BRW_Z.some((q) => q.o === i) ? '<dt>Bodenrichtwert</dt><dd>' + BRW_Z.filter((q) => q.o === i).map((q) => '<b>' + esc(fmtW(q.w)) + '</b> <span class="s">' + esc(q.artDe) + '</span>').join('') + '<span class="s">Stichtag ' + esc(fmtIso(BRW.stichtag)) + ', Bauland</span></dd>' : '') + '</dl>'
-      + (ORTSTEILE_SEITE ? '<a href="' + ORTSTEILE_SEITE + '" target="_blank" rel="noopener">Ortsporträt auf der Website von ' + esc(ORT_NAME) + ' →</a>' : '')
+      + geschichteHtml(o.n) + (ORTSTEILE_SEITE ? '<a href="' + ORTSTEILE_SEITE + '" target="_blank" rel="noopener">Ortsporträt auf der Website von ' + esc(ORT_NAME) + ' →</a>' : '')
       + sourceLine('Ortsporträts: Website der Gemeinde' + (M.ortsteilInfo && M.ortsteilInfo.gelesen ? ' (gelesen ' + fmtIso(M.ortsteilInfo.gelesen) + ')' : '') + '; Grenzen: OpenStreetMap; Adressen und Gebäude: LGB', ORTSTEILE_SEITE));
     flyTo({ tx: o.x, tz: o.z, dist: 1500, phi: 0.95 }, 1600);
   }
@@ -1587,19 +1602,94 @@
     else if (otSel.value !== '') goOrtsteil(+otSel.value);
     otSel.value = '';
   };
+  // ---- Landwirtschaft und Sicherheit: Löschwasser, Sirenen, Anlagen, Flugplätze (OpenStreetMap, data/notfall.js)
+  const NFT = { // Art: Name, Zeichen, Farbe, Gruppe, Hinweis
+    H: ['Hydrant', 'H', '#d04a4a', 'notfall'], B: ['Löschbrunnen', 'B', '#3a8fe0', 'notfall'], T: ['Löschwasserbehälter', 'T', '#3a8fe0', 'notfall'], P: ['Löschteich', 'P', '#3a8fe0', 'notfall'], S: ['Saugstelle', 'S', '#3a8fe0', 'notfall'],
+    I: ['Sirene', '📢', '#d9a21b', 'sirenen'], W: ['Windrad', '🌀', '#2c8ea0', 'energie'], G: ['Biogas- oder Biomasseanlage', '♨', '#4aa84a', 'energie'], O: ['Solarpark', '☀', '#c9892a', 'energie'], F: ['Flugplatz', '✈', '#5a6fd0', 'flug'],
+    k: ['Spielplatz', '🎠', '#d86fa0', 'freizeit'], q: ['Sportanlage', '⚽', '#4aa84a', 'freizeit'], a: ['Aussichts- oder Rastplatz', '🔭', '#6a8fd0', 'freizeit'], i: ['Informationstafel/Wegweiser', 'ℹ', '#2c8ea0', 'freizeit'], d: ['Denkmal/Geschichtsort', '🏛', '#a07a4a', 'freizeit'],
+    b: ['Sitzbank', '💺', '#8a8f98', 'alltag'], u: ['Unterstand', '⛺', '#8a8f98', 'alltag'], w: ['Trinkwasser', '🚰', '#3a8fe0', 'alltag'], t: ['Toilette', '🚻', '#8a8f98', 'alltag'], l: ['Ladesäule', '🔌', '#4aa84a', 'alltag'], r: ['Fahrradständer', '🚲', '#8a8f98', 'alltag'], v: ['Verkaufsautomat', '🛒', '#c9892a', 'alltag'],
+    L: ['Straßenlampe', '💡', '#d9c24a', 'lampen'],
+  };
+  const NF = window.AL_NOTFALL;
+  const NFHINT = {
+    notfall: 'Löschwasserangaben stammen von Mitwirkenden bei OpenStreetMap und können unvollständig oder veraltet sein. Ob und wie viel Löschwasser an dieser Stelle verfügbar ist, bestätigt nur die Feuerwehr oder der Wasserversorger.',
+    sirenen: 'Sirenenstandort laut OpenStreetMap, keine amtliche Liste. Ob die Sirene in Betrieb ist, ist nicht belegt.',
+    energie: 'Anlage laut OpenStreetMap, ohne Gewähr. Leistung und Betreiber stehen nur, wenn sie dort eingetragen sind.',
+    freizeit: 'Eintrag aus OpenStreetMap, ohne Gewähr. Öffnungszeiten, Zustand und Nutzungsbedingungen bitte beim Betreiber oder vor Ort erfragen.',
+    alltag: 'Eintrag aus OpenStreetMap, ohne Gewähr. Ob die Einrichtung vorhanden und nutzbar ist, kann abweichen.',
+    lampen: 'Straßenlampe laut OpenStreetMap, nicht vollständig.' + (ORT.meldeportal ? ' <b>Defekt oder dunkel?</b> Meldung im <a href="' + esc(ORT.meldeportal.url) + '" target="_blank" rel="noopener">' + esc(ORT.meldeportal.name) + '</a>: Straße und Hausnummer oder diese Lampe (Nummer, falls am Mast zu lesen) nennen.' : ''),
+    flug: 'Rund um Flugplätze gelten für Drohnen Beschränkungen. Die amtlichen Zonen zeigt die <a href="' + (window.ALA ? window.ALA.DIPUL : 'https://maptool-dipul.dfs.de/?language=de') + '" target="_blank" rel="noopener">Karte der Deutschen Flugsicherung (dipul)</a>. Bitte vor jedem Flug dort nachsehen. Der Eintrag hier stammt aus OpenStreetMap.',
+  };
+  function showNf(it, mk) {
+    const t = NFT[it[0]];
+    $$('.mk.sel').forEach((m) => m.classList.remove('sel')); mk.el.classList.add('sel');
+    openCard('<h3>' + esc(t[0]) + '</h3><p class="sub">' + esc(it[3] || 'ohne weitere Angaben') + '</p><p class="note">' + NFHINT[t[3]] + '</p>'
+      + sourceLine('OpenStreetMap, Objekt ' + it[4], 'https://www.openstreetmap.org/' + it[4]));
+    flyTo({ tx: it[1], tz: it[2], dist: Math.min(view.dist, it[0] === 'W' || it[0] === 'F' ? 900 : 260), phi: Math.min(view.phi, 1.1) }, 900);
+  }
+  if (NF && NF.items) NF.items.forEach((it) => {
+    const t = NFT[it[0]]; if (!t) return;
+    const mk = addMarker('nf', t[1], it[1], it[0] === 'W' ? 60 : it[0] === 'F' ? 30 : 8, it[2], () => showNf(it, mk), null);
+    mk.grp = t[3]; mk.el.style.setProperty('--c', t[2]); mk.el.title = t[0] + (it[3] ? ': ' + it[3] : '');
+    if (/[^\x00-\x7f]/.test(t[1])) mk.el.classList.add('big');
+  });
+  function showAgrar() {
+    $$('.mk.sel').forEach((m) => m.classList.remove('sel'));
+    openCard('<h3>Bodenfeuchte und Agrarwetter</h3><p class="sub">Für Felder und Gärten, Modellrechnung des DWD</p><div id="agrCard"></div>');
+    if (window.ALA) window.ALA.mountBoden($('#agrCard'));
+  }
+  const oa = $('#openAgrar'); if (oa) oa.onclick = () => showAgrar();
+  (function agrAktuell() { // Waldbrandstufe, Drohnenhinweis und Maerker im Bereich "Aktuell"
+    const A = window.ALA, el = $('#agrAktuell'); if (!A || !el) return;
+    el.innerHTML = (ORT.waldbrand ? '<div class="lg">' + A.brandHtml() + '</div>' : '') + (ORT.meldeportal ? '<div class="lg">' + A.maerkerHtml() + '</div>' : '') + (ORT.drohne ? '<div class="lg">' + A.drohneHtml() + '</div>' : '');
+  })();
+
+  // ---- Touren (Rad, Wandern, Inline-Skaten aus OpenStreetMap, data/touren.js): Bänder auf dem Boden, Breite wächst mit der Entfernung
+  const TRCOL = { 'Inline-Skaten': [1, 0.35, 0.65], Rad: [0.23, 0.63, 1], Wandern: [0.5, 0.84, 0.31], Mountainbike: [0.91, 0.53, 0.23] };
+  function buildTouren() {
+    const T = window.AL_TOUREN; if (TR.built || !T || !T.routen) return; TR.built = true;
+    const pos = [], off = [], col = [], idx = [];
+    T.routen.forEach((r, ri) => {
+      const y = 0.6 + ri * 0.05, c = TRCOL[r.art] || [1, 1, 1], w = r.art === 'Inline-Skaten' ? 1.25 : 1;
+      r.lines.forEach((f) => {
+        const n = f.length / 2; if (n < 2) return;
+        for (let i = 0; i < n; i++) {
+          const x = f[i * 2], z = f[i * 2 + 1], a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
+          let dx = f[b * 2] - f[a * 2], dz = f[b * 2 + 1] - f[a * 2 + 1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+          const k = pos.length / 3;
+          pos.push(x, y, z, x, y, z); off.push(-dz * w, 0, dx * w, dz * w, 0, -dx * w); col.push(c[0], c[1], c[2], c[0], c[1], c[2]);
+          if (i > 0) idx.push(k - 2, k - 1, k, k - 1, k + 1, k);
+        }
+      });
+    });
+    if (!pos.length) return;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('off', new THREE.Float32BufferAttribute(off, 3)); g.setAttribute('col', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx);
+    TR.mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6, uniforms: { uW: { value: 4 } },
+      vertexShader: 'attribute vec3 off; attribute vec3 col; uniform float uW; varying vec3 vC; void main(){ vC = col; gl_Position = projectionMatrix * modelViewMatrix * vec4(position + off * uW, 1.0); }',
+      fragmentShader: 'varying vec3 vC; void main(){ gl_FragColor = vec4(vC, 0.93); }',
+    });
+    TR.mesh = new THREE.Mesh(g, TR.mat); TR.mesh.frustumCulled = false; TR.mesh.renderOrder = 6; scene.add(TR.mesh); S.dirty = true;
+  }
   function applyLayers() {
     ground.visible = S.L.photo; flat.visible = !S.L.photo; if (!S.L.photo) ensureAreas();
     for (const k in T) { const t = T[k]; if (t.bld && t.bld.mesh) t.bld.mesh.visible = S.L.buildings; if (t.trees && t.trees.mesh) t.trees.mesh.visible = S.L.trees; }
     FZ.group.visible = S.L.fahrzeuge; if (S.L.fahrzeuge) fzStart(); else fzStop();
     if (CL.mesh) CL.mesh.visible = S.L.wolken && CL.ok;
-    if (S.L.relief && !RL.mesh) {
-      new THREE.TextureLoader().load('img/relief.png?v=' + (window.AL_TV || ''), (t) => {
-        t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
-        const m = new THREE.Mesh(planeGeo(W, H), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-        m.position.set(CX, 0.1, CZ); m.renderOrder = 2; m.visible = S.L.relief; scene.add(m); RL.mesh = m; S.dirty = true;
-      });
-    }
-    if (RL.mesh) RL.mesh.visible = S.L.relief;
+    if (S.L.touren) buildTouren();
+    if (TR.mesh) TR.mesh.visible = S.L.touren;
+    OVL.forEach((o) => { // Bildebenen aus dem Geländemodell: werden erst beim Einschalten geladen
+      if (S.L[o.k] && !o.mesh && !o.busy) {
+        o.busy = true;
+        new THREE.TextureLoader().load('img/' + o.k + '.png?v=' + (window.AL_TV || ''), (t) => {
+          t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+          const m = new THREE.Mesh(planeGeo(W, H), new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: o.k === 'hang' ? 0.75 : 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -o.o, polygonOffsetUnits: -o.o }));
+          m.position.set(CX, 0.05 + o.o * 0.03, CZ); m.renderOrder = o.o; m.visible = S.L[o.k]; scene.add(m); o.mesh = m; S.dirty = true;
+        });
+      }
+      if (o.mesh) o.mesh.visible = S.L[o.k];
+    });
     borders.visible = S.L.borders; brwGroup.visible = S.L.brw; updateLegend(); $('#sunShadows').checked = S.L.shadows; applySun(); S.moved = true; S.dirty = true;
   }
   if (!ORT.gelaende) { const rl = $('[data-layer=relief]'); if (rl && rl.closest('label')) rl.closest('label').hidden = true; } // Relief nur mit DGM (ort.json: bausteine.gelaende)
@@ -1617,19 +1707,26 @@
     + '<li><b>Bäume:</b> symbolisch. Sie werden in Waldflächen zufällig verteilt und zeigen keine echten Einzelbäume.</li>'
     + '<li><b>Geländehöhen und Relief:</b> Digitales Geländemodell (DGM) der LGB, © GeoBasis-DE/LGB, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a> (Daten geändert), auf 10 m gemittelt. Die Höhen (Meter über NHN) gelten für die Mitte des Gebäudes, Ortes oder Ortsteils. Das Relief ist stark überhöht (Faktor 6) und nur eine Schummerung auf dem Luftbild, das Gelände selbst bleibt flach.</li>'
     + '<li><b>Dachfarbe und Solar-Eignung:</b> Die Dachfarbe ist der mittlere Farbton des Dachs im Luftbild (© GeoBasis-DE/LGB, dl-de/by-2-0, Daten geändert). Schatten, Bäume und die Schrägsicht des Luftbilds verfälschen einzelne Dächer. Die Solar-Eignung rechnet aus Neigung und Ausrichtung der LoD2-Dachflächen die Strahlung relativ zur besten Lage (Süd, 35 Grad). Nutzbar sind 75 % einer geneigten und 50 % einer flachen Fläche bei 0,21 kWp je m², ' + SOL_KWH + ' kWh je kWp und Jahr bei bester Ausrichtung. Keine Verschattung, keine Statik, kein Denkmalschutz, keine Anlagenplanung: grobe Schätzung ohne Gewähr.</li>'
+    + (window.AL_GESCHICHTE ? '<li><b>Ortsgeschichte:</b> Texte aus der <a href="https://de.wikipedia.org/" target="_blank" rel="noopener">deutschsprachigen Wikipedia</a> (Artikel der Ortsteile, Abschnitt Geschichte, gekürzt), <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.de" target="_blank" rel="noopener">CC BY-SA 4.0</a>. Autoren und Version stehen bei jedem Text. Gelesen am ' + esc(fmtIso(window.AL_GESCHICHTE.stand)) + '. Wikipedia kann sich ändern, maßgeblich ist der Artikel.</li>' : '')
+    + (ORT.touren ? '<li><b>Touren:</b> Routen aus OpenStreetMap (© OpenStreetMap-Mitwirkende, <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">ODbL</a>)' + (window.AL_TOUREN && window.AL_TOUREN.wikivoyage ? ', Beschreibung aus <a href="' + esc(window.AL_TOUREN.wikivoyage.url) + '" target="_blank" rel="noopener">Wikivoyage</a> (CC BY-SA 4.0, mit Urhebernennung auf der Touren-Seite)' : '') + '. Zustand und Sperrungen vor Ort können abweichen.</li>' : '')
+    + (ORT.gelaende ? '<li><b>Hangneigung und Geländesenken:</b> Eigene Auswertung des Geländemodells der LGB (© GeoBasis-DE/LGB, dl-de/by-2-0, Daten geändert): Neigung aus dem 10-m-Raster, Senken durch Füllen auf einem 20-m-Raster. Eine Geländeanalyse, keine Gefahrenkarte: Teiche, Kiesgruben, Gräben und Dämme erscheinen mit. Keine Aussage zu Starkregen oder Überschwemmung.</li>' : '')
+    + (ORT.notfall ? '<li><b>Löschwasser, Sirenen, Windräder, Biogas- und Solaranlagen, Flugplätze, Freizeit- und Alltagseinrichtungen (Spielplätze, Sport, Denkmale, Tafeln, Bänke, Unterstände, Automaten), Straßenlampen:</b> © OpenStreetMap-Mitwirkende, <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">ODbL</a>' + (NF && NF.stand ? ', Stand ' + esc(fmtIso(NF.stand)) : '') + '. Von Mitwirkenden eingetragen, daher möglicherweise unvollständig oder veraltet. Maßgeblich sind Feuerwehr, Wasserversorger und Betreiber. Die Flugplätze ersetzen keine amtliche Auskunft zu Drohnen-Beschränkungen (<a href="https://maptool-dipul.dfs.de/?language=de" target="_blank" rel="noopener">dipul der Deutschen Flugsicherung</a>).</li>' : '')
+    + (ORT.landwirt && window.AL_LANDW ? '<li><b>Bodenfeuchte und Agrarwetter:</b> Deutscher Wetterdienst (DWD), agrarmeteorologische Berechnungen (AMBAV, AMBETI) für die Station ' + esc(window.AL_LANDW.station.name) + ', <a href="https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html" target="_blank" rel="noopener">CC BY 4.0</a>. Modellrechnung für typische Böden, keine Messung auf dem Acker, Stand ' + esc(fmtIso(window.AL_LANDW.stand)) + '.</li>' : '')
+    + (ORT.waldbrand ? '<li><b>Waldbrandgefahrenstufe:</b> ' + esc((window.AL_WALDBRAND && window.AL_WALDBRAND.quelle) || ORT.waldbrand.quelle || 'Landesbehörde') + ', <a href="' + esc((window.AL_WALDBRAND && window.AL_WALDBRAND.url) || ORT.waldbrand.url || '#') + '" target="_blank" rel="noopener">amtliche Seite</a>. Die Stufe wird täglich gelesen und nur angezeigt, wenn sie frisch ist. Maßgeblich ist die amtliche Seite.</li>' : '')
+    + (ORT.meldeportal ? '<li><b>Mängel melden:</b> Verweis auf <a href="' + esc(ORT.meldeportal.url) + '" target="_blank" rel="noopener">' + esc(ORT.meldeportal.name) + '</a>' + (ORT.meldeportal.betreiber ? ' (' + esc(ORT.meldeportal.betreiber) + ')' : '') + '. Die Meldung geschieht dort, nicht auf dieser Seite.</li>' : '')
     + '<li><b>Besonnung und Schatten:</b> Schätzung ohne Gewähr. Berücksichtigt nur Gebäude aus LoD2, keine Bäume, kein Gelände.</li>'
     + '<li><b>Fahrpläne (Bus und Bahn):</b> Sollfahrplan: ' + esc(ORT.betreiber || '') + ', <a href="' + esc(ORT.lizenzUrl || '#') + '" target="_blank" rel="noopener">' + esc(ORT.lizenz || '') + '</a>, ' + (FP ? 'Stand ' + esc(FP.stand) + ', gültig ' + esc(fmtYmd(FP.feedFrom)) + ' bis ' + esc(fmtYmd(FP.feedTo)) : 'nicht geladen') + '. Auf die Haltestellen des Gebiets gefiltert (Daten geändert). Ohne Gewähr.</li>'
     + '<li><b>Veranstaltungen:</b> ' + (((window.AL_EVENTS_AUTO || {}).quellen || []).length ? esc(window.AL_EVENTS_AUTO.quellen.join(', ')) : 'von Hand gepflegt (events.js)') + ((window.AL_EVENTS_AUTO || {}).stand ? ' (gelesen am ' + esc(fmtIso(window.AL_EVENTS_AUTO.stand)) + ')' : '') + '. Übernommen werden nur Titel, Datum, Uhrzeit und Ort mit Link zur Originalseite.</li>'
     + '<li><b>Öffnungszeiten und Kontakt der Orte:</b> aus OpenStreetMap, ergänzt durch den Wortlaut der eigenen Webseite des Ortes, wo dort maschinell lesbar vorhanden (mit Lesedatum und Link in der Ortskarte). Ohne Angabe steht „nicht verifiziert“. Zeiten ändern sich, bitte beim Betrieb nachfragen.</li>'
     + '<li><b>Schriften:</b> Sora und JetBrains Mono, SIL Open Font License 1.1, lokal eingebunden.</li>'
-    + '<li><b>Wetter (nur auf Wunsch):</b> Deutscher Wetterdienst (DWD, offene Daten nach GeoNutzV) über die freie Schnittstelle <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a>. Der Browser ruft die Daten erst nach Ihrer Zustimmung direkt dort ab. Dazu gehören die amtlichen Wetterwarnungen des DWD. Die Wolkenebene auf der Karte ist eine Veranschaulichung: Sie folgt dem gemeldeten Bedeckungsgrad und der Windrichtung, zieht im Zeitraffer und zeigt keine echten Wolkenformen.</li>'
+    + '<li><b>Wetter (nur auf Wunsch):</b> Deutscher Wetterdienst (DWD, offene Daten nach GeoNutzV) über die freie Schnittstelle <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a>. Der Browser ruft die Daten erst nach Ihrer Zustimmung direkt dort ab. Dazu gehören die amtlichen Wetterwarnungen des DWD und die Wettervorhersage für die nächsten Tage.' + (ORT.webcam ? ' Die Webcam-Vorschau (' + esc(ORT.webcam.name) + (ORT.webcam.entfernung_km ? ', rund ' + esc(ORT.webcam.entfernung_km) + ' km entfernt' : '') + ') lädt der Browser nach Ihrer Zustimmung von <a href="' + esc(ORT.webcam.url) + '" target="_blank" rel="noopener">' + esc(String(ORT.webcam.url).replace(/^https?:\/\//, '').split('/')[0]) + '</a>, Quelle Deutscher Wetterdienst, <a href="https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html" target="_blank" rel="noopener">CC BY 4.0</a>.' : '') + ' Die Wolkenebene auf der Karte ist eine Veranschaulichung: Sie folgt dem gemeldeten Bedeckungsgrad und der Windrichtung, zieht im Zeitraffer und zeigt keine echten Wolkenformen.</li>'
     + '<li><b>Luftqualität (nur auf Wunsch):</b> Modelldaten des Copernicus-Dienstes CAMS über <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener">Open-Meteo</a>, CC BY 4.0, keine Messung vor Ort. Abruf erst nach Ihrer Zustimmung direkt aus dem Browser.</li>'
     + (ORT.baustellen ? '<li><b>Baustellen und Sperrungen (nur auf Wunsch):</b> © Landesbetrieb Straßenwesen Brandenburg, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2.0</a>, über den Geodienst isk.geobasis-bb.de. Abruf erst nach Ihrer Zustimmung direkt aus dem Browser.</li>' : '')
     + (VBB_HOSTS.length ? '<li><b>Live-Abfahrten und Meldungen Bahn und Bus (nur auf Wunsch):</b> Echtzeitdaten (Abfahrten, Meldungen, Fahrzeugpositionen für die bewegten Fahrzeugmodelle; die Modelle sind Miniaturen nach Betreiber, die Wagenzahl ist angenommen) über die freien, inoffiziellen Schnittstellen ' + esc(VBB_HOSTS.map((h) => h.replace('https://', '')).join(' und ')) + ' (<a href="https://github.com/public-transport/transport.rest" target="_blank" rel="noopener">transport.rest</a>). Abruf erst nach Ihrer Zustimmung direkt aus dem Browser. Ohne Gewähr.</li>' : '')
     + (ORT.muell ? '<li><b>Müllabfuhr (nur auf Wunsch):</b> eingebettete Abfuhrabfrage: <a href="' + esc(ORT.muell.seite || ORT.muell.url) + '" target="_blank" rel="noopener">' + esc(ORT.muell.name) + '</a>. Die Termine stammen von dort und werden hier nicht gespeichert.' + (ORT.muell.hinweis ? ' ' + esc(ORT.muell.hinweis) : '') + '</li>' : '')
     + '<li><b>Aktualisierung:</b> Orte, Haltestellen und Fahrplan wöchentlich' + (NEWS.stand ? ' (letzter Lauf ' + esc(fmtIso(NEWS.stand)) + ')' : '') + ', Gebäude und Adressen vierteljährlich, Bodenrichtwerte jährlich.</li>'
     + (ORTSTEILE_SEITE ? '<li><b>Ortsinformationen (Einwohnerzahl, Ersterwähnung, Sehenswertes):</b> Ortsporträts auf der <a href="' + ORTSTEILE_SEITE + '" target="_blank" rel="noopener">Website: ' + esc(ORT_NAME) + '</a>' + (M.ortsteilInfo && M.ortsteilInfo.gelesen ? ' (gelesen am ' + esc(fmtIso(M.ortsteilInfo.gelesen)) + ')' : '') + '. Übernommen werden nur einzelne Angaben, keine Texte und keine Personen. Einwohnerzahlen sind Angaben aus den Texten ohne einheitlichen Stand, bei ' + OT.filter((o) => !ewText(o)).length + ' von ' + OT.length + ' Ortsteilen fehlt sie. Fläche, Adress- und Gebäudezahl stammen aus eigenen Daten (Grenze: OpenStreetMap, Adressen und Gebäude: LGB).</li>' : '')
-    + '<li><b>3D-Darstellung:</b> three.js (MIT-Lizenz), läuft lokal im Browser, es werden keine Daten an Dritte gesendet.</li></ul><p class="note">Prototyp. Keine Gewähr für Richtigkeit und Vollständigkeit.</p>';
+    + '<li><b>3D-Darstellung:</b> three.js (MIT-Lizenz), läuft lokal im Browser, es werden keine Daten an Dritte gesendet.</li></ul><p class="note">Keine Gewähr für Richtigkeit und Vollständigkeit.</p>';
 
   // ------------------------------------------------------------------ Schleife
   let loadingHidden = false;
@@ -1717,7 +1814,7 @@
     });
   })();
   // ---- Link zum Teilen: Kamera, Ebenen, Einfärbung, Sonnenstand (nur wenn verstellt) und gewählter Ort stehen im Adressteil (#k=…); nichts davon verlässt den Browser
-  const LKEYS = ['photo', 'buildings', 'trees', 'places', 'stops', 'fahrzeuge', 'events', 'labels', 'borders', 'roads', 'shadows', 'brw', 'wolken', 'relief'];
+  const LKEYS = ['photo', 'buildings', 'trees', 'places', 'stops', 'fahrzeuge', 'events', 'labels', 'borders', 'roads', 'shadows', 'brw', 'wolken', 'relief', 'hang', 'senken', 'notfall', 'sirenen', 'energie', 'flug', 'freizeit', 'alltag', 'lampen', 'touren'];
   function toast(t) { const el = $('#toast'); if (!el) return; el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, 2600); }
   function shareHash() {
     const r = (v, n) => +v.toFixed(n), n = nowB();
