@@ -23,9 +23,13 @@
   // ------------------------------------------------------------------ Zustand
   const S = {
     dirty: true, moved: true, colorMode: 'nutzung', sel: null, pending: null, panel: null,
-    L: { photo: true, buildings: true, trees: true, places: true, stops: true, events: true, labels: true, borders: true, roads: false, shadows: true, brw: false },
+    L: { photo: true, buildings: true, trees: true, places: true, stops: true, fahrzeuge: true, events: true, labels: true, borders: true, roads: false, shadows: true, brw: false, wolken: true, relief: false },
     sun: { y: 2026, mo: 6, d: 21, min: 14 * 60 }, playing: false, spot: null, evFilter: '30', evCats: new Set(), evArea: 'all', plSel: new Set(), plArea: 'gem', dim: 1,
   };
+
+  const CL = { mesh: null, ok: false }; // Wolkenebene (nur mit eingeblendeten Wetterdaten)
+  const RL = { mesh: null }; // Geländerelief (Schummerung aus dem DGM), wird erst beim Einschalten geladen
+  const nfH = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   // ------------------------------------------------------------------ Renderer / Szene
   const canvas = $('#c');
@@ -147,7 +151,7 @@
     if (areasState) return;
     areasState = 1;
     const s = document.createElement('script');
-    s.src = 'data/areas.js';
+    s.src = 'data/areas.js?v=' + (window.AL_TV || '');
     s.onload = () => {
       const pos = [], colr = [], idx = [];
       (window.AL_AREAS || []).forEach(([kind, outer, holes]) => {
@@ -177,7 +181,7 @@
     if (T[key]) return T[key];
     const [i, j] = key.split('_').map(Number), t = (T[key] = { key, i, j, st: 'loading', x: X0 + (i + 0.5) * C, z: Z0 + (j + 0.5) * C, used: 0 });
     const s = document.createElement('script');
-    s.src = 'data/t_' + key + '.js';
+    s.src = 'data/t_' + key + '.js?v=' + (window.AL_TV || '');
     s.onload = () => { t.data = window.AL_TILES[key]; t.st = t.data ? 'data' : 'failed'; S.dirty = true; };
     s.onerror = () => { t.st = 'failed'; };
     document.head.appendChild(s);
@@ -204,7 +208,7 @@
     let nv = 0, ni = 0;
     B.forEach((b) => { nv += (b.wv.length + b.rv.length) / 3; ni += b.wi.length + b.ri.length; });
     const pos = new Float32Array(nv * 3), idx = new Uint32Array(ni), kind = new Uint8Array(nv), vb = new Uint16Array(nv);
-    const ts = new Uint32Array(B.length), te = new Uint32Array(B.length), boxes = B.map(() => new THREE.Box3());
+    const rb = new Uint32Array(B.length), ts = new Uint32Array(B.length), te = new Uint32Array(B.length), boxes = B.map(() => new THREE.Box3());
     let vo = 0, io = 0;
     B.forEach((b, bi) => {
       ts[bi] = io / 3;
@@ -213,7 +217,7 @@
         for (let i = 0; i < v.length; i += 3) { pos[vo * 3] = v[i] + b.x; pos[vo * 3 + 1] = v[i + 1]; pos[vo * 3 + 2] = v[i + 2] + b.z; kind[vo] = k; vb[vo] = bi; vo++; }
         for (let i = 0; i < ix.length; i++) idx[io++] = ix[i] + base;
       };
-      put(b.wv, b.wi, 0); put(b.rv, b.ri, 1);
+      put(b.wv, b.wi, 0); rb[bi] = vo; put(b.rv, b.ri, 1);
       te[bi] = io / 3;
     });
     const p = new THREE.Vector3();
@@ -229,7 +233,7 @@
     mesh.castShadow = true; mesh.receiveShadow = true;
     mesh.visible = S.L.buildings;
     scene.add(mesh);
-    t.bld = { mesh, pos, idx, kind, vb, ts, te, boxes, box, ca };
+    t.bld = { mesh, pos, idx, kind, vb, rb, ts, te, boxes, box, ca };
     recolorTile(t);
   }
   function recolorTile(t) {
@@ -245,6 +249,8 @@
         const f = clamp(b.t / 18, 0, 1), c = f < 0.5 ? tmpC.clone().lerpColors(RAMP[0], RAMP[1], f * 2) : tmpC.clone().lerpColors(RAMP[1], RAMP[2], (f - 0.5) * 2);
         wc.push(c); rc.push(c);
       } else if (S.colorMode === 'einheitlich') { wc.push(WALL_C.unbekannt); rc.push(ROOF_TILE[0]); }
+      else if (S.colorMode === 'dach') { wc.push(WALL_C.unbekannt); rc.push(b.rc != null ? roofColor(b.rc) : ROOF_GREY[hash(b.id) % ROOF_GREY.length]); }
+      else if (S.colorMode === 'solar') { wc.push(col('#cfcfc8')); rc.push(null); }
       else {
         const h = hash(b.id);
         wc.push(WALL_C[b.u] || WALL_C.unbekannt);
@@ -252,8 +258,56 @@
       }
     });
     const a = bl.ca.array;
-    for (let v = 0; v < bl.vb.length; v++) { const c = (bl.kind[v] ? rc : wc)[bl.vb[v]]; a[v * 3] = c.r; a[v * 3 + 1] = c.g; a[v * 3 + 2] = c.b; }
+    for (let v = 0; v < bl.vb.length; v++) {
+      const bi = bl.vb[v]; let c;
+      if (bl.kind[v]) { c = rc[bi] || solarColor(solarOf(B[bi]).vf[v - bl.rb[bi]]); } else c = wc[bi];
+      a[v * 3] = c.r; a[v * 3 + 1] = c.g; a[v * 3 + 2] = c.b;
+    }
     bl.ca.needsUpdate = true; S.dirty = true;
+  }
+
+  // ---- Solarpotenzial und Dachfarbe (Schätzung aus den Dachformen LoD2 und dem Luftbild; keine Anlagenplanung)
+  // Eignung je Dachfläche: Strahlung relativ zur besten Ausrichtung (Süd, 35 Grad): f = 0,45 + 0,55 * cos(Winkel zwischen Dachnormale und bester Normale).
+  // Nutzbare Fläche: 75 % einer geneigten, 50 % einer flachen Fläche (Abstände, Gauben, Schornsteine, Aufständerung); 0,21 kWp je m²; Ertrag: 980 kWh je kWp und Jahr bei bester Ausrichtung
+  // (Mitteldeutschland, ort.json: bausteine.solar_kwh_je_kwp). Gegenprobe an einem bekannten Dach mit 21 kWp installierter Leistung: Schätzung rund 19 kWp. Ohne Verschattung durch Bäume und Nachbarn, ohne Statik, Denkmalschutz, Eigenverbrauch.
+  const SOL_KWH = Number(ORT.solarKwh) || 980; // kWh je kWp und Jahr bei bester Ausrichtung
+  const SOL_CY = Math.cos(35 * Math.PI / 180), SOL_SZ = Math.sin(35 * Math.PI / 180);
+  const SOL_STOPS = [[0.55, col('#5a6785')], [0.8, col('#f1b44c')], [0.95, col('#4fd08a')]];
+  function solarColor(f) {
+    const s = SOL_STOPS; if (f <= s[0][0]) return s[0][1]; if (f >= s[2][0]) return s[2][1];
+    const i = f < s[1][0] ? 0 : 1, u = (f - s[i][0]) / (s[i + 1][0] - s[i][0]);
+    return tmpC.clone().lerpColors(s[i][1], s[i + 1][1], u);
+  }
+  function solarOf(b) {
+    if (b._sol) return b._sol;
+    const rv = b.rv, ri = b.ri, vf = new Float32Array(rv.length / 3).fill(0.5);
+    let tot = 0, use = 0, kwh = 0, kwp = 0;
+    for (let t = 0; t < ri.length; t += 3) {
+      const a = ri[t] * 3, c = ri[t + 1] * 3, d = ri[t + 2] * 3;
+      const ux = rv[c] - rv[a], uy = rv[c + 1] - rv[a + 1], uz = rv[c + 2] - rv[a + 2], vx = rv[d] - rv[a], vy = rv[d + 1] - rv[a + 1], vz = rv[d + 2] - rv[a + 2];
+      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const len = Math.hypot(nx, ny, nz);
+      if (len < 1e-6) continue;
+      if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+      const area = len / 2, f = 0.45 + 0.55 * Math.max(0, (ny * SOL_CY + nz * SOL_SZ) / len); // z zeigt nach Süden
+      vf[ri[t]] = vf[ri[t + 1]] = vf[ri[t + 2]] = f; tot += area;
+      if (f >= 0.7) { const u = area * (ny / len > 0.985 ? 0.5 : 0.75); use += u; kwp += u * 0.21; kwh += u * 0.21 * SOL_KWH * f; }
+    }
+    return (b._sol = { tot, use, kwh, kwp, vf });
+  }
+  const roofCache = new Map();
+  function roofColor(rc) { // Farbe aus dem Luftbild, etwas aufgehellt und satter (Luftbild liegt im Schatten und im Dunst)
+    let c = roofCache.get(rc);
+    if (!c) {
+      const h = { h: 0, s: 0, l: 0 }; new THREE.Color((rc >> 16 & 255) / 255, (rc >> 8 & 255) / 255, (rc & 255) / 255).getHSL(h);
+      c = new THREE.Color().setHSL(h.h, Math.min(1, h.s * 1.3), clamp(h.l * 1.15 + 0.04, 0, 0.85)).convertSRGBToLinear(); roofCache.set(rc, c);
+    }
+    return c;
+  }
+  const nf = (n, step) => (Math.round(n / step) * step).toLocaleString('de-DE');
+  function solarRows(b) {
+    const q = solarOf(b); if (q.tot < 12) return '';
+    return '<dt>Dach</dt><dd>' + nf(q.tot, 1) + ' m² Dachfläche</dd><dt>Solar</dt><dd>'
+      + (q.use >= 5 ? 'rund ' + nf(q.use, 5) + ' m² nutzbar, ca. ' + nf(q.kwp, 0.5) + ' kWp, ca. ' + nf(q.kwh, 100) + ' kWh im Jahr<span class="s">Schätzung ohne Gewähr, ohne Verschattung und Statik</span>' : 'kaum geeignete Dachfläche (Nordseiten)') + '</dd>';
   }
 
   const treeGeo = new THREE.ConeGeometry(2.6, 9, 5).translate(0, 5.5, 0);
@@ -393,7 +447,8 @@
     if (p.fa && !p.tl) { const f = faLabel(p.fa); if (f) p.tl = f; }
   });
   const typeDe = (p) => p.tl || TYPE_DE[p.t] || p.t.replace(/_/g, ' ');
-  const placeByName = (n) => PLACES.find((p) => p.name === n || p.n === n);
+  const nameKey = (n) => String(n || '').toLowerCase().replace(/[^a-z0-9äöüß]+/g, ' ').trim(); // Kommas und Zeichensetzung egal: "Familienzentrum, Neustadt" = "Familienzentrum Neustadt"
+  const placeByName = (n) => PLACES.find((p) => p.name === n || p.n === n) || PLACES.find((p) => nameKey(p.n) === nameKey(n));
   PLACES.forEach((p) => { p.name = p.n; });
 
   const nowB = () => AL.berlinParts(Date.now());
@@ -451,12 +506,16 @@
   { // Mehrere OSM-Punkte derselben Haltestelle (Steige, Gegenrichtung, Bahnhof und Busbahnhof-Eingang) gehören zu einer Fahrplangruppe: ein Marker an der mittleren Lage
     const keep = [], nm = (s) => norm0(s.g >= 0 && FPG[s.g] ? FPG[s.g].n : s.n);
     STOPS.forEach((s) => {
-      const t = keep.find((q) => (s.g >= 0 && q.g === s.g) || (nm(q) === nm(s) && Math.hypot(q.x - s.x, q.z - s.z) < 450)); // gleiche Gruppe oder gleicher Name in der Nähe
-      if (t) { t._n++; t._sx += s.x; t._sz += s.z; if (s.k === 'rail') t.k = 'rail'; if (t.g < 0 && s.g >= 0) t.g = s.g; return; }
+      const t = keep.find((q) => q.k === s.k && ((s.g >= 0 && q.g === s.g) || (nm(q) === nm(s) && Math.hypot(q.x - s.x, q.z - s.z) < 450))); // gleiche Art (Bahn oder Bus) und gleiche Gruppe oder gleicher Name in der Nähe
+      if (t) { t._n++; t._sx += s.x; t._sz += s.z; if (t.g < 0 && s.g >= 0) t.g = s.g; return; }
       s._n = 1; s._sx = s.x; s._sz = s.z;
       keep.push(s);
     });
     keep.forEach((s, i) => { s.i = i; if (s._n > 1) { s.x = s._sx / s._n; s.z = s._sz / s._n; } });
+    { // Bahnhof und Bushaltestelle teilen sich eine Fahrplangruppe (zum Beispiel Neustadt, Bahnhof): zwei Marker, jeder zeigt nur die Abfahrten seiner Art
+      const kinds = {}; keep.forEach((s) => { if (s.g >= 0) (kinds[s.g] = kinds[s.g] || new Set()).add(s.k); });
+      keep.forEach((s) => { if (s.g >= 0 && kinds[s.g].size > 1) { s.mode = s.k; s.n = FPG[s.g].n + (s.k === 'bus' ? ' (Bus)' : ' (Bahn)'); } }); // Name aus dem Fahrplan, mit Art
+    }
     STOPS.length = 0; keep.forEach((s) => STOPS.push(s));
   }
   STOPS.forEach((s) => { s.marker = addMarker('stop ' + s.k, s.k === 'rail' ? '🚆' : '🚌', s.x, 10, s.z, () => showStop(s.i), s.n); });
@@ -552,6 +611,12 @@
     } else if (S.colorMode === 'hoehe') {
       el.hidden = false;
       el.innerHTML = '<b>Gebäudehöhe</b>' + lg('#f0e6c8', 'niedrig') + lg('#e0983f', 'rund 9 m') + lg('#8b2e2e', '18 m und mehr');
+    } else if (S.colorMode === 'dach') {
+      el.hidden = false;
+      el.innerHTML = '<b>Dachfarbe</b><span class="s">aus dem Luftbild (LGB) je Gebäude, Schätzung: Schatten, Bäume und die Schrägsicht des Luftbilds verfälschen einzelne Dächer</span>';
+    } else if (S.colorMode === 'solar') {
+      el.hidden = false;
+      el.innerHTML = '<b>Solar-Eignung je Dachfläche</b><span class="s">Schätzung aus Neigung und Ausrichtung, ohne Verschattung</span>' + lg('#4fd08a', 'gut (Süd, flach)') + lg('#f1b44c', 'bedingt (Ost, West)') + lg('#5a6785', 'wenig (Nordseite)');
     } else if (S.colorMode === 'nutzung') {
       el.hidden = false;
       el.innerHTML = '<b>Gebäudenutzung</b>' + ['wohnen', 'gewerbe', 'industrie', 'oeffentlich', 'landwirtschaft', 'neben'].map((k) => lg(WALL[k], USE_DE[k])).join('');
@@ -569,7 +634,7 @@
   function updateMarkers() {
     const w = canvas.clientWidth, h = canvas.clientHeight, v = new THREE.Vector3(), far = view.dist > 1300;
     markers.forEach((m) => {
-      const on = m.cls === 'poi' ? S.L.places && (!S.plSel.size || S.plSel.has(m.grp)) : m.cls === 'ev' ? S.L.events : m.cls === 'ot' ? S.L.labels : m.cls === 'brw' ? S.L.brw : S.L.stops;
+      const on = m.cls === 'poi' ? S.L.places && (!S.plSel.size || S.plSel.has(m.grp)) : m.cls === 'ev' ? S.L.events : m.cls === 'ot' ? S.L.labels : m.cls === 'brw' ? S.L.brw : m.cls === 'veh' ? S.L.fahrzeuge : S.L.stops;
       v.copy(m.v).project(camera);
       const x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
       const near = m.cls === 'ot' ? far : m.cls === 'brw' ? view.dist < 12000 : (!far || view.dist < 2600) && camera.position.distanceTo(m.v) < 1900;
@@ -799,27 +864,46 @@
     openCard('<h3>' + (addr.length ? addr[0] : 'Gebäude') + '</h3><p class="sub">' + (otName(b.o) ? esc(otName(b.o)) + ' · ' : '') + esc(USE_DE[b.u] || 'Nutzung unbekannt') + '</p><dl>'
       + (addr.length > 1 ? '<dt>Weitere Adressen</dt><dd>' + addr.slice(1).join(', ') + '</dd>' : '')
       + (addr.length ? '' : '<dt>Adresse</dt><dd>keine amtliche Adresse zugeordnet</dd>')
-      + '<dt>Höhe</dt><dd>' + (b.h ? b.h.toFixed(1) + ' m über Grund' : '–') + '</dd><dt>Gesamthöhe</dt><dd>' + b.t.toFixed(1) + ' m</dd>' + brwRow(b.x, b.z) + '</dl>'
+      + '<dt>Höhe</dt><dd>' + (b.h ? b.h.toFixed(1) + ' m über Grund' : '–') + '</dd><dt>Gesamthöhe</dt><dd>' + b.t.toFixed(1) + ' m</dd>' + (b.hn != null ? '<dt>Gelände</dt><dd>' + nfH(b.hn) + ' m über NHN<span class="s">am Gebäude, aus dem Geländemodell (10 m)</span></dd>' : '') + solarRows(b) + brwRow(b.x, b.z) + '</dl>'
       + (BRW ? BRW_NOTE : '') + '<button class="chip" id="toSun">☀ Besonnung anzeigen</button>'
       + sourceLine('LGB Brandenburg: Gebäude LoD2 und Adressen (dl-de/by-2.0)', 'https://www.govdata.de/dl-de/by-2-0'));
     $('#toSun').onclick = () => openPanel('sun', true);
   }
-  function showPlace(i, fly) {
-    const p = PLACES[i], st = AL.openStatus(p.oh, nowB()), web = safeUrl(p.web), evs = EV.filter((e) => e.place === p.name);
-    $$('.mk.sel').forEach((m) => m.classList.remove('sel')); p.marker.el.classList.add('sel');
-    openCard('<h3>' + esc(p.name) + '</h3><p class="sub">' + esc(GROUPS[p.g].label) + ' · ' + esc(typeDe(p)) + (whereOf(p) ? ' · ' + esc(whereOf(p)) : '') + '</p><dl>'
-      + (p.ad ? '<dt>Adresse</dt><dd>' + esc(p.ad) + '</dd>' : '') + '<dt>Jetzt</dt><dd><span class="tag ' + st.state + '">' + esc(st.text) + '</span></dd>'
+  // Reiter in Karten: Ort und seine Termine bleiben zusammen (Ortskarte: Ort | Termine, Terminkarte: Veranstaltung | Ort)
+  function tabbed(head, panes, active) {
+    const on = (k) => k === active;
+    openCard(head + '<div class="chips tabs" role="tablist">' + panes.map((q) => '<button class="chip' + (on(q.k) ? ' on' : '') + '" role="tab" aria-selected="' + on(q.k) + '" data-ptab="' + q.k + '">' + q.label + '</button>').join('') + '</div>'
+      + panes.map((q) => '<div data-pane="' + q.k + '"' + (on(q.k) ? '' : ' hidden') + '>' + q.html + '</div>').join(''));
+    $$('[data-ptab]', cardBody).forEach((b) => { b.onclick = () => { $$('[data-ptab]', cardBody).forEach((x) => { const o = x === b; x.classList.toggle('on', o); x.setAttribute('aria-selected', o); }); $$('[data-pane]', cardBody).forEach((d) => { d.hidden = d.dataset.pane !== b.dataset.ptab; }); }; });
+    $$('[data-ev]', cardBody).forEach((b) => { b.onclick = () => showEvent(EV[+b.dataset.ev]); });
+    $$('[data-goplace]', cardBody).forEach((b) => { b.onclick = () => showPlace(+b.dataset.goplace, true); });
+  }
+  const placeOf = (e) => e.pl || null;
+  const eventsOf = (p) => EV.filter((e) => e.pl === p && e.off >= 0).sort((a, b) => a.t - b.t);
+  const evItem = (e) => '<button class="item" data-ev="' + EV.indexOf(e) + '"><span class="t">' + esc(e.from) + '</span><span>' + esc(e.title) + '<span class="s">' + esc(dateFmt.format(new Date(e.t))) + '</span></span></button>';
+  const placeHead = (p) => '<h3>' + esc(p.name) + '</h3><p class="sub">' + esc(GROUPS[p.g].label) + ' · ' + esc(typeDe(p)) + (whereOf(p) ? ' · ' + esc(whereOf(p)) : '') + '</p>';
+  function placePane(p) {
+    const st = AL.openStatus(p.oh, nowB()), web = safeUrl(p.web);
+    return '<dl>'
+      + (p.ad ? '<dt>Adresse</dt><dd>' + esc(p.ad) + '</dd>' : '') + (p.hn != null ? '<dt>Höhe</dt><dd>' + nfH(p.hn) + ' m über NHN</dd>' : '') + '<dt>Jetzt</dt><dd><span class="tag ' + st.state + '">' + esc(st.text) + '</span></dd>'
       + '<dt>Zeiten</dt><dd>' + (p.oh ? esc(ohDe(p.oh)) + (p.ohw ? '<span class="s">laut Webseite, Stand ' + esc(fmtIso(p.wg)) + '</span>' : '') : p.wt ? esc(p.wt) + '<span class="s">Wortlaut der Webseite, Stand ' + esc(fmtIso(p.wg)) + '</span>' : 'nicht verifiziert') + '</dd>'
       + (p.tel ? '<dt>Telefon</dt><dd><a href="tel:' + esc(String(p.tel).replace(/[^+\d]/g, '')) + '">' + esc(p.tel) + '</a></dd>' : '')
       + (p.mail && /^[^\s@<>"]+@[^\s@<>"]+$/.test(p.mail) ? '<dt>E-Mail</dt><dd><a href="mailto:' + esc(p.mail) + '">' + esc(p.mail) + '</a></dd>' : '') + '</dl>'
       + (web ? '<a href="' + esc(web) + '" target="_blank" rel="noopener">Webseite öffnen →</a>' : '<p class="note">Keine Webseite in OpenStreetMap hinterlegt.</p>')
-      + (evs.length ? '<p class="note">' + evs.length + ' Veranstaltung(en) hier' + (evs.some((e) => e.dummy) ? ' (Beispieldaten)' : '') + '.</p>' : '') + sourceLine('OpenStreetMap, Objekt ' + p.osm, 'https://www.openstreetmap.org/' + p.osm)
+      + sourceLine('OpenStreetMap, Objekt ' + p.osm, 'https://www.openstreetmap.org/' + p.osm)
       + (p.wq && safeUrl(p.wq) && (p.wt || p.tel || p.mail || p.ohw) ? sourceLine('Zeiten und Kontakt: eigene Webseite, gelesen ' + fmtIso(p.wg), p.wq) : '')
-      + (p.kq ? sourceLine(p.kq) : ''));
+      + (p.kq ? sourceLine(p.kq) : '');
+  }
+  function showPlace(i, fly, tab) {
+    const p = PLACES[i], evs = eventsOf(p);
+    $$('.mk.sel').forEach((m) => m.classList.remove('sel')); p.marker.el.classList.add('sel');
+    if (evs.length) tabbed(placeHead(p), [{ k: 'ort', label: 'Ort', html: placePane(p) }, { k: 'termine', label: 'Termine (' + evs.length + ')', html: evs.map(evItem).join('') + (evs.some((e) => e.dummy) ? '<p class="note">Beispieldaten</p>' : '') }], tab === 'termine' ? 'termine' : 'ort');
+    else openCard(placeHead(p) + placePane(p));
     if (fly) flyTo({ tx: p.x, tz: p.z, dist: Math.min(view.dist, 220), phi: Math.min(view.phi, 1.1) }, 900);
   }
   const fmtYmd = (s) => s.slice(6, 8) + '.' + s.slice(4, 6) + '.' + s.slice(0, 4);
-  const opShort = (o) => String(o || '').replace(/\s+(GmbH|AG|mbH)$/i, '').replace('Verkehrsgesellschaft Teltow-Fläming', 'VGTF').replace('ODEG Ostdeutsche Eisenbahn', 'ODEG');
+  const opShort = (o) => String(o || '').replace(/\s+(GmbH|AG|mbH)$/i, '');
+  const opShortK = (o) => { const s = opShort(o), k = ORT.betreiberKuerzel || {}; for (const n in k) if (s.indexOf(n) >= 0) return k[n]; return s; }; // ort.json: fahrplan.betreiber_kuerzel
   function fpDeps(g, day) {
     const sd = day || S.stopDay || S.sun, ds = String(sd.y) + AL.pad(sd.mo) + AL.pad(sd.d);
     if (ds < FP.feedFrom || ds > FP.feedTo) return { err: 'Der Fahrplan (' + BETR + ') liegt nur vom ' + fmtYmd(FP.feedFrom) + ' bis ' + fmtYmd(FP.feedTo) + ' vor. Für diesen Tag gibt es keine Daten.' };
@@ -838,8 +922,9 @@
   // Zwei freie, inoffizielle Instanzen derselben Schnittstelle (HAFAS-Daten des VBB-Netzes): fällt die eine aus, antwortet die andere.
   const VBB_HOSTS = ORT.liveHosts || []; // ort.json: fahrplan.live_hosts; leer = keine Live-Daten
   let vbbOk = false; try { vbbOk = localStorage.getItem('alw-vbb') === 'ja'; } catch (e) { /* ohne Speicher */ }
-  const vbbSet = (on) => { try { if (on) localStorage.setItem('alw-vbb', 'ja'); else localStorage.removeItem('alw-vbb'); } catch (e) { /* egal */ } vbbOk = on; };
+  const vbbSet = (on) => { try { if (on) localStorage.setItem('alw-vbb', 'ja'); else localStorage.removeItem('alw-vbb'); } catch (e) { /* egal */ } vbbOk = on; if (on) fzStart(); else fzStop(); };
   let vbbHost = 0;
+  const RADAR = ORT.umgrenzung || [0, 0, 0, 0]; // Süd, West, Nord, Ost (ort.json: geo.umgrenzung_sued_west_nord_ost)
   async function vbbGet(path) {
     let err;
     for (let k = 0; k < VBB_HOSTS.length; k++) {
@@ -901,7 +986,7 @@
       const d = await vbbDeps(s, 180, 60);
       if (!S.card || S.card.type !== 'stop' || S.card.i !== s.i) return;
       if (!d) { box.innerHTML = '<p class="note">Live: Haltestelle im Echtzeitdienst nicht gefunden.</p>'; return; }
-      const w = warnTexts(d), all = d.departures || [], list = all.filter(depRecentRail).slice(-4).concat(all.filter(depUpcoming).slice(0, 8)); // bis zu 4 Züge der letzten Stunde (grau), dann die nächsten
+      const w = warnTexts(d), all = (d.departures || []).filter((x) => !s.mode || isRailDep(x) === (s.mode === 'rail')), list = all.filter(depRecentRail).slice(-4).concat(all.filter(depUpcoming).slice(0, 8)); // bis zu 4 Züge der letzten Stunde (grau), dann die nächsten
       box.innerHTML = '<div class="live"><b>Live, nächste 3 Stunden</b>' + warnHtml(w) + (list.length ? '<div class="deps">' + list.map(depRow).join('') + '</div>' : '<p class="note">In den nächsten 3 Stunden fährt hier laut Echtzeitdienst nichts ab.</p>')
         + '<p class="note">Quelle: Echtzeitdaten (' + BETR + ') über ' + vbbHostName() + ', Stand ' + (d.realtimeDataUpdatedAt ? clockFmt.format(new Date(d.realtimeDataUpdatedAt * 1000)) + ' Uhr' : 'unbekannt') + '. Inoffiziell, ohne Gewähr. <a href="#" data-vbb-off>Live-Daten ausblenden</a></p></div>';
       bindVbb(box, again);
@@ -929,16 +1014,342 @@
     } catch (e) { box.innerHTML = '<p class="note">Live-Daten zurzeit nicht abrufbar: Die Dienste antworten nicht. <a href="#" data-vbb-retry>Erneut versuchen</a> · <a href="#" data-vbb-off>Live-Daten ausblenden</a></p>'; }
   }
 
+  // ------------------------------------------------------------------ Fahrzeuge live (nur mit Einwilligung, Radar des Echtzeitdienstes)
+  // Der Echtzeitdienst liefert zu jedem Fahrzeug im Kartenausschnitt die aktuelle Lage und die nächsten Halte mit Ankunfts- und Abfahrtszeit
+  // (bei Verspätung die tatsächliche Zeit). Daraus rechnet der Browser die Bewegung: Züge fahren auf dem Gleisnetz (data/gleise.js, kürzester Weg
+  // von Halt zu Halt, nach Zeit und Weglänge), Busse laufen in gerader Linie zwischen den Halten und rasten auf die Straße, soweit die Kachel geladen ist.
+  // Die Modelle sind Miniaturen nach Betreiber, keine Abbilder der echten Fahrzeuge; Wagenzahl und Länge sind Annahmen.
+  const FZ = { list: new Map(), timer: 0, simTimer: 0, liveN: 0, group: new THREE.Group(), busy: false, scale: 1.5, follow: null, sel: null, trail: [], stand: 0 };
+  scene.add(FZ.group);
+  const FZ_LOOK = {
+    odeg: { cars: 2, len: 24, low: '#f2c21b', up: '#f6f3e8' }, // ODEG: gelb-weiß
+    db: { cars: 3, len: 26, low: '#c4313a', up: '#f1f1ee' }, // DB Regio: rot-weiß
+    ice: { cars: 5, len: 26, low: '#e3e5e8', up: '#f6f6f6', stripe: '#d5222b' }, // Fernverkehr: weiß mit rotem Streifen
+    bus: { cars: 1, len: 12, low: '#1b7f93', up: '#e9eeee' }, // Bus: Farbe symbolisch
+  };
+  const fzLook = (ln) => {
+    const op = String((ln.operator && ln.operator.name) || '');
+    if (ln.product === 'bus') return 'bus';
+    if (ln.product === 'express') return 'ice';
+    return /ODEG|Ostdeutsche/i.test(op) ? 'odeg' : 'db';
+  };
+  const FZ_ART = { odeg: 'Regionalbahn (ODEG)', db: 'Regionalzug (DB Regio)', ice: 'Fernverkehr', bus: 'Bus' };
+  const fzGeo = { box: new THREE.BoxGeometry(1, 1, 1), wheel: new THREE.CylinderGeometry(0.55, 0.55, 0.42, 12).rotateX(Math.PI / 2) };
+  const fzMat = {}, fzKit = {};
+  const fzM = (c) => fzMat[c] || (fzMat[c] = new THREE.MeshLambertMaterial({ color: c }));
+  function fzCanvas(w, h, draw) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+  }
+  const fzRR = (g, x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  function fzKitFor(kind) { // Seitenbild (Fenster, Türen, Streifen), Stirnbild und Materialien je Bauart, einmal erzeugt
+    if (fzKit[kind]) return fzKit[kind];
+    const L = FZ_LOOK[kind], bus = kind === 'bus';
+    const side = fzCanvas(512, 128, (g, w, h) => {
+      g.fillStyle = L.up; g.fillRect(0, 0, w, h);
+      g.fillStyle = L.low; g.fillRect(0, bus ? 76 : 70, w, bus ? 40 : 46);
+      if (L.stripe) { g.fillStyle = L.stripe; g.fillRect(0, 62, w, 9); }
+      g.fillStyle = '#26323f'; g.fillRect(0, 118, w, 10); // Schürze
+      const n = bus ? 6 : 8, ww = bus ? 56 : 38, gap = (w - n * ww) / (n + 1);
+      for (let i = 0; i < n; i++) {
+        const x = gap + i * (ww + gap), door = (!bus && (i === 1 || i === n - 2)) || (bus && i === 1);
+        if (door) { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x - 3, 12, ww + 6, 104); }
+        g.fillStyle = '#27394d'; fzRR(g, x, bus ? 14 : 18, ww, bus ? 46 : 40, 5); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(x + 4, (bus ? 14 : 18) + 4, ww * 0.35, 5);
+      }
+      if (bus) { g.fillStyle = '#10161d'; [[78, 112], [410, 112]].forEach(([cx, cy]) => { g.beginPath(); g.arc(cx, cy, 27, Math.PI, 0); g.fill(); }); }
+    });
+    const front = fzCanvas(128, 128, (g, w, h) => {
+      g.fillStyle = L.up; g.fillRect(0, 0, w, h); g.fillStyle = L.low; g.fillRect(0, 74, w, 54);
+      g.fillStyle = '#1f2a36'; fzRR(g, 12, 12, 104, 54, 8); g.fill();
+      g.fillStyle = '#ffeaa8'; [[26, 92], [102, 92]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill(); });
+      g.fillStyle = '#26323f'; g.fillRect(0, 118, w, 10);
+    });
+    const lam = (o) => new THREE.MeshLambertMaterial(o);
+    return (fzKit[kind] = { side: lam({ map: side }), front: lam({ map: front }), plain: lam({ color: L.up }), roof: lam({ color: '#9aa3ad' }), floor: lam({ color: '#222a32' }) });
+  }
+  function fzModel(kind) {
+    const L = FZ_LOOK[kind], bus = kind === 'bus', k = fzKitFor(kind), g = new THREE.Group(), w = bus ? 2.5 : 2.9, h = bus ? 3.0 : 3.7, yb = bus ? 0.6 : 0.95;
+    const part = (geo, mat, sx, sy, sz, x, y, z, shadow) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); m.castShadow = !!shadow; return m; };
+    for (let i = 0; i < L.cars; i++) {
+      const cx = (i - (L.cars - 1) / 2) * (L.len + 1.0);
+      const body = new THREE.Mesh(fzGeo.box, [i === L.cars - 1 ? k.front : k.plain, i === 0 ? k.front : k.plain, k.roof, k.floor, k.side, k.side]);
+      body.scale.set(L.len, h, w); body.position.set(cx, yb + h / 2, 0); body.castShadow = true; g.add(body);
+      if (bus) {
+        [[0.34, 1], [0.34, -1], [-0.28, 1], [-0.28, -1]].forEach(([f, s]) => g.add(part(fzGeo.wheel, fzM('#15181c'), 1, 1, 1, cx + L.len * f, 0.55, s * (w / 2 - 0.12))));
+        g.add(part(fzGeo.box, fzM('#cfd6d9'), 2.2, 0.35, w * 0.5, cx - 1, yb + h + 0.17, 0)); // Dachaufbau
+      } else {
+        [-0.3, 0.3].forEach((f) => g.add(part(fzGeo.box, fzM('#2a2f36'), 4.6, 0.85, w * 0.82, cx + L.len * f, 0.43, 0))); // Drehgestelle
+        [-0.22, 0.22].forEach((f) => g.add(part(fzGeo.box, fzM('#8d949b'), 2.8, 0.42, w * 0.5, cx + L.len * f, yb + h + 0.21, 0))); // Dachklimageräte
+      }
+    }
+    g.scale.setScalar(FZ.scale);
+    return g;
+  }
+  const fzX = (lon) => (lon - M.origin.lon) * 111320 * Math.cos(M.origin.lat * Math.PI / 180), fzZ = (lat) => -(lat - M.origin.lat) * 111132;
+  const fzTime = (s) => (s ? Date.parse(s) : NaN);
+  function fzPath(mv, now) { // Punkte: aktuelle Lage jetzt, danach jeder nächste Halt mit Ankunft und Abfahrt (nie rückwärts in der Zeit)
+    const pts = [{ x: fzX(mv.location.longitude), z: fzZ(mv.location.latitude), a: now, d: now }];
+    let t = now;
+    (mv.nextStopovers || []).forEach((s) => {
+      const loc = s.stop && s.stop.location; if (!loc) return;
+      let a = fzTime(s.arrival || s.plannedArrival), d = fzTime(s.departure || s.plannedDeparture);
+      if (isNaN(a)) a = isNaN(d) ? t + 60000 : d;
+      if (isNaN(d)) d = a;
+      if (d < now - 20000) return; // der Halt liegt schon hinter dem Fahrzeug (der Dienst liefert auch vergangene Halte mit)
+      a = Math.max(a, t + 3000); d = Math.max(d, a);
+      pts.push({ x: fzX(loc.longitude), z: fzZ(loc.latitude), a, d, name: s.stop.name, delay: s.arrivalDelay != null ? s.arrivalDelay : s.departureDelay }); t = d;
+    });
+    return pts;
+  }
+  function fzAt(pts, now) { // gerade Verbindung zwischen den Halten (Busse), in der Zeit linear, am Halt wartet das Fahrzeug bis zur Abfahrt
+    if (now >= pts[pts.length - 1].a) return { x: pts[pts.length - 1].x, z: pts[pts.length - 1].z };
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i - 1], q = pts[i];
+      if (now < q.a) { const f = clamp((now - p.d) / Math.max(1, q.a - p.d), 0, 1); return { x: p.x + (q.x - p.x) * f, z: p.z + (q.z - p.z) * f }; }
+      if (now < q.d) return { x: q.x, z: q.z };
+    }
+    return { x: pts[0].x, z: pts[0].z };
+  }
+  // ---- Gleisnetz: Streckengleise aus OpenStreetMap (site/data/gleise.js) als Graph, kürzester Weg zwischen zwei Punkten
+  const RG = { ok: false, nx: [], nz: [], adj: [], ex: [] };
+  function rgBuild() {
+    if (RG.ok || !window.AL_GLEISE) return;
+    const id = new Map(), node = (x, z) => { const k = Math.round(x) + ',' + Math.round(z); let i = id.get(k); if (i === undefined) { i = RG.nx.length; id.set(k, i); RG.nx.push(x); RG.nz.push(z); RG.adj.push([]); } return i; };
+    window.AL_GLEISE.forEach((f) => {
+      for (let i = 0; i + 3 < f.length; i += 2) {
+        const a = node(f[i], f[i + 1]), b = node(f[i + 2], f[i + 3]); if (a === b) continue;
+        const l = Math.hypot(RG.nx[a] - RG.nx[b], RG.nz[a] - RG.nz[b]); RG.adj[a].push([b, l]); RG.adj[b].push([a, l]); RG.ex.push([a, b, l]);
+      }
+    });
+    RG.ok = RG.ex.length > 0;
+  }
+  function rgSnap(x, z, max) { // nächster Punkt auf einem Gleisstück: Stück, Anteil t von a nach b, Lage
+    let best = null, bd = max * max;
+    RG.ex.forEach((e, i) => {
+      const ax = RG.nx[e[0]], az = RG.nz[e[0]], dx = RG.nx[e[1]] - ax, dz = RG.nz[e[1]] - az, l2 = dx * dx + dz * dz;
+      const t = l2 > 0 ? clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1) : 0, px = ax + dx * t, pz = az + dz * t, d = (px - x) * (px - x) + (pz - z) * (pz - z);
+      if (d < bd) { bd = d; best = { e: i, t, x: px, z: pz }; }
+    });
+    return best;
+  }
+  function rgDijkstra(a, limit) { // kürzeste Wege von einem Gleispunkt zu allen Netzpunkten bis zur Weglänge limit
+    const N = RG.nx.length, dist = new Float64Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1), heap = [];
+    const push = (d, n) => { heap.push([d, n]); let i = heap.length - 1; while (i > 0) { const p2 = (i - 1) >> 1; if (heap[p2][0] <= heap[i][0]) break; [heap[p2], heap[i]] = [heap[i], heap[p2]]; i = p2; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let l = 2 * i + 1, r = l + 1, m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+    const ea = RG.ex[a.e];
+    dist[ea[0]] = a.t * ea[2]; dist[ea[1]] = (1 - a.t) * ea[2]; push(dist[ea[0]], ea[0]); push(dist[ea[1]], ea[1]);
+    while (heap.length) {
+      const [d, n] = pop(); if (d > dist[n]) continue; if (d > limit) break;
+      RG.adj[n].forEach(([m, l]) => { if (d + l < dist[m]) { dist[m] = d + l; prev[m] = n; push(dist[m], m); } });
+    }
+    return { dist, prev };
+  }
+  function rgPathFar(p, q) { // Ziel außerhalb des Gleisnetzes (Fernzug): auf den Gleisen bis zum Netzpunkt nächst dem Ziel, dann geradeaus
+    const a = rgSnap(p.x, p.z, 300); if (!a) return null;
+    const { dist, prev } = rgDijkstra(a, Infinity); let best = -1, bd = Infinity;
+    for (let n = 0; n < dist.length; n++) { if (!isFinite(dist[n])) continue; const d = Math.hypot(RG.nx[n] - q.x, RG.nz[n] - q.z); if (d < bd) { bd = d; best = n; } }
+    if (best < 0) return null;
+    const rev = []; for (let n = best; n >= 0; n = prev[n]) rev.push(RG.nx[n], RG.nz[n]);
+    const out = [a.x, a.z]; for (let i = rev.length - 2; i >= 0; i -= 2) out.push(rev[i], rev[i + 1]); out.push(q.x, q.z);
+    return out;
+  }
+  function rgReverse(poly) { if (!poly) return null; const out = []; for (let i = poly.length - 2; i >= 0; i -= 2) out.push(poly[i], poly[i + 1]); return out; } // Weg umdrehen (Start liegt außerhalb des Gleisnetzes, das Ziel darin)
+  function rgPath(p, q) { // Weg entlang der Gleise als Liste x,z,x,z,… oder null (kein Weg, Umweg zu groß)
+    const a = rgSnap(p.x, p.z, 300), b = rgSnap(q.x, q.z, 300); if (!a || !b) return null;
+    const straight = Math.hypot(p.x - q.x, p.z - q.z), ea = RG.ex[a.e], eb = RG.ex[b.e];
+    if (a.e === b.e) return [a.x, a.z, b.x, b.z];
+    const limit = straight * 3 + 800, { dist, prev } = rgDijkstra(a, limit);
+    const viaA = dist[eb[0]] + b.t * eb[2], viaB = dist[eb[1]] + (1 - b.t) * eb[2];
+    if (!isFinite(Math.min(viaA, viaB)) || Math.min(viaA, viaB) > limit) return null;
+    let n = viaA <= viaB ? eb[0] : eb[1]; const rev = [];
+    while (n >= 0) { rev.push(RG.nx[n], RG.nz[n]); n = prev[n]; }
+    const out = [a.x, a.z]; for (let i = rev.length - 2; i >= 0; i -= 2) out.push(rev[i], rev[i + 1]); out.push(b.x, b.z);
+    return out;
+  }
+  function fzLeg(poly, t0, t1) { // Abschnitt mit Weglängen
+    const cum = [0]; for (let i = 2; i < poly.length; i += 2) cum.push(cum[cum.length - 1] + Math.hypot(poly[i] - poly[i - 2], poly[i + 1] - poly[i - 1]));
+    return { poly, cum, L: cum[cum.length - 1], t0, t1 };
+  }
+  function fzLegAt(g, f) { // Lage und Fahrtrichtung bei Anteil f der Weglänge
+    const d = clamp(f, 0, 1) * g.L; let i = 1; while (i < g.cum.length - 1 && g.cum[i] < d) i++;
+    const x0 = g.poly[2 * (i - 1)], z0 = g.poly[2 * (i - 1) + 1], x1 = g.poly[2 * i], z1 = g.poly[2 * i + 1], s = g.cum[i] - g.cum[i - 1], u = s > 0 ? (d - g.cum[i - 1]) / s : 0;
+    return { x: x0 + (x1 - x0) * u, z: z0 + (z1 - z0) * u, dx: x1 - x0, dz: z1 - z0 };
+  }
+  function fzLegsFor(v) { // für Züge: Abschnitte entlang der Gleise von Halt zu Halt (sonst gerade Linie)
+    rgBuild(); const legs = [];
+    for (let i = 1; i < v.pts.length; i++) {
+      const p = v.pts[i - 1], q = v.pts[i], poly = (RG.ok && (rgPath(p, q) || rgPathFar(p, q) || rgReverse(rgPathFar(q, p)))) || [p.x, p.z, q.x, q.z];
+      legs.push(fzLeg(poly, p.d, q.a));
+    }
+    return legs;
+  }
+  function fzAtLegs(v, t) {
+    const L = v.legs;
+    for (let i = 0; i < L.length; i++) {
+      const g = L[i];
+      if (t < g.t0) return fzLegAt(g, 0); // wartet am Halt, Blick in Fahrtrichtung des nächsten Abschnitts
+      if (t < g.t1) return fzLegAt(g, (t - g.t0) / Math.max(1, g.t1 - g.t0));
+    }
+    return fzLegAt(L[L.length - 1], 1);
+  }
+  const FZ_STRASSE = { motorway: 1, trunk: 1, primary: 1, secondary: 1, tertiary: 1, unclassified: 1, residential: 1, living_street: 1, service: 1 };
+  function fzSegs(v) { // Straßen aus den geladenen Kacheln im Umfeld der Strecke (Busse)
+    const pad = 160, xs = v.pts.map((p) => p.x), zs = v.pts.map((p) => p.z), x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, z0 = Math.min(...zs) - pad, z1 = Math.max(...zs) + pad, out = [];
+    for (const k in T) {
+      const t = T[k]; if (!t.data || !t.data.rd) continue;
+      t.data.rd.forEach(([kind, f]) => {
+        if (!FZ_STRASSE[kind]) return;
+        for (let i = 0; i + 3 < f.length; i += 2) {
+          const a = f[i], b = f[i + 1], c = f[i + 2], d = f[i + 3];
+          if ((a < x0 && c < x0) || (a > x1 && c > x1) || (b < z0 && d < z0) || (b > z1 && d > z1)) continue;
+          out.push(a, b, c, d);
+        }
+      });
+    }
+    return out;
+  }
+  function fzSnap(s, x, z, max) { // nächster Punkt auf den Segmenten (mit deren Richtung), sonst unverändert
+    let bx = x, bz = z, bd = max * max, sx = 0, sz = 0;
+    for (let i = 0; i < s.length; i += 4) {
+      const ax = s[i], az = s[i + 1], dx = s[i + 2] - ax, dz = s[i + 3] - az, l2 = dx * dx + dz * dz;
+      const f = l2 > 0 ? clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1) : 0, px = ax + dx * f, pz = az + dz * f, d = (px - x) * (px - x) + (pz - z) * (pz - z);
+      if (d < bd) { bd = d; bx = px; bz = pz; sx = dx; sz = dz; }
+    }
+    return { x: bx, z: bz, sx, sz };
+  }
+  const fzStateEl = () => $('#fzState');
+  function fzSetState(t) { const el = fzStateEl(); if (el) el.textContent = t; }
+  function fzRemove(v) { FZ.group.remove(v.g); const i = markers.indexOf(v.m); if (i >= 0) markers.splice(i, 1); v.m.el.remove(); if (FZ.sel === v.id) { FZ.sel = null; FZ.follow = null; FZ.trail = []; } }
+  async function fzPoll() {
+    if (FZ.busy || document.hidden || !vbbOk || !S.L.fahrzeuge) return;
+    FZ.busy = true;
+    try {
+      const d = await vbbGet('/radar?north=' + RADAR[2] + '&west=' + RADAR[1] + '&south=' + RADAR[0] + '&east=' + RADAR[3] + '&results=80&duration=240&frames=1&polylines=false'), now = Date.now(), seen = new Set();
+      (d.movements || []).forEach((mv) => {
+        if (!mv.location || !mv.line || !mv.tripId) return;
+        const x = fzX(mv.location.longitude), z = fzZ(mv.location.latitude);
+        if (x < X0 - 500 || x > X0 + W + 500 || z < Z0 - 500 || z > Z0 + H + 500) return; // nur im Kartenausschnitt
+        seen.add(mv.tripId);
+        const kind = fzLook(mv.line);
+        let v = FZ.list.get(mv.tripId);
+        if (!v) {
+          const g = fzModel(kind); g.visible = false; FZ.group.add(g);
+          const m = addMarker('veh', '<b>' + esc(mv.line.name) + '</b>', x, 8, z, () => { const c = FZ.list.get(mv.tripId); if (c) fzShow(c); }, null);
+          m.el.classList.add('vehicle', kind);
+          v = { id: mv.tripId, kind, g, m, x, z, ox: 0, oz: 0, miss: 0, segs: [] };
+          FZ.list.set(mv.tripId, v);
+        }
+        v.miss = 0; v.pts = fzPath(mv, now); v.t0 = now; v.line = mv.line.name; v.dir = mv.direction || ''; v.op = (mv.line.operator && mv.line.operator.name) || '';
+        v.m.el.title = v.line + ' nach ' + (v.dir || '?');
+        if (kind === 'bus') { v.legs = null; v.segs = fzSegs(v); } else v.legs = fzLegsFor(v); // Züge: Gleisweg, Busse: Gerade mit Einrasten
+        const p0 = v.legs && v.legs.length ? fzLegAt(v.legs[0], 0) : v.pts[0];
+        v.ox = v.x - p0.x; v.oz = v.z - p0.z; // Ausgleich: die angezeigte Lage gleitet zur neuen
+      });
+      FZ.list.forEach((v, id) => { if (!v.sim && !seen.has(id) && ++v.miss > 2) { fzRemove(v); FZ.list.delete(id); } });
+      FZ.liveN = [...FZ.list.values()].filter((v) => !v.sim).length; FZ.stand = now; fzSimSync(); fzSetState('live, Stand ' + clockFmt.format(new Date(now)) + ' Uhr, ' + FZ.list.size + ' Fahrzeuge');
+    } catch (e) { fzSetState('Dienst nicht erreichbar, Fahrzeuge bleiben stehen'); }
+    FZ.busy = false;
+  }
+  function fzTick() {
+    const t = Date.now();
+    FZ.list.forEach((v) => {
+      if (!v.pts) return;
+      let p, ang;
+      if (v.legs && v.legs.length) { // Zug: entlang des Gleises, Richtung = Gleisrichtung
+        const r = fzAtLegs(v, t); p = { x: r.x, z: r.z }; if (r.dx || r.dz) ang = Math.atan2(r.dz, r.dx);
+        const dec = Math.exp(-(t - v.t0) / 6000); p = { x: p.x + v.ox * dec, z: p.z + v.oz * dec };
+      } else if (v.kind !== 'bus') { // Zug ohne weiteren Halt in den Daten: bleibt stehen
+        p = { x: v.pts[0].x, z: v.pts[0].z };
+      } else { // Bus: gerade Verbindung, auf die Straße gelegt, Richtung = Straße vorwärts zum nächsten Halt
+        p = fzAt(v.pts, t); const dec = Math.exp(-(t - v.t0) / 6000); p = { x: p.x + v.ox * dec, z: p.z + v.oz * dec };
+        let seg = null;
+        if (v.segs.length) { const q = fzSnap(v.segs, p.x, p.z, 45); if (q.sx || q.sz) seg = q; p = q; }
+        const nx = v.pts.find((q, i) => i > 0 && t < q.a) || v.pts[v.pts.length - 1], tx = nx.x - p.x, tz = nx.z - p.z, tl = Math.hypot(tx, tz);
+        if (seg) { const l = Math.hypot(seg.sx, seg.sz), ux = seg.sx / l, uz = seg.sz / l, sign = tl > 1 ? (ux * tx + uz * tz >= 0 ? 1 : -1) : (v.ang !== undefined && ux * Math.cos(v.ang) + uz * Math.sin(v.ang) < 0 ? -1 : 1); ang = Math.atan2(uz * sign, ux * sign); }
+        else if (tl > 1) ang = Math.atan2(tz, tx);
+      }
+      if (ang !== undefined) { if (v.ang === undefined) v.ang = ang; else { let da = ang - v.ang; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; v.ang += da * 0.2; } }
+      v.x += (p.x - v.x) * 0.35; v.z += (p.z - v.z) * 0.35; // leicht glätten, damit das Fahrzeug beim Einrasten nicht springt
+      v.g.visible = S.L.fahrzeuge; v.g.position.set(v.x, 0.1, v.z); v.g.rotation.y = -(v.ang || 0);
+      v.m.v.set(v.x, 8, v.z);
+    });
+    const sel = FZ.sel && FZ.list.get(FZ.sel);
+    if (sel) {
+      if (FZ.follow === sel.id) { view.tx += (sel.x - view.tx) * 0.12; view.tz += (sel.z - view.tz) * 0.12; applyView(); }
+      const last = FZ.trail[FZ.trail.length - 1];
+      if (!last || Math.hypot(sel.x - last[0], sel.z - last[1]) > 3) FZ.trail.push([sel.x, sel.z, t]);
+      while (FZ.trail.length && t - FZ.trail[0][2] > 180000) FZ.trail.shift();
+    }
+    fzDrawTrail(t);
+  }
+  const fzTrailGeo = new THREE.BufferGeometry(), fzTrailPos = new Float32Array(600 * 3), fzTrailCol = new Float32Array(600 * 4);
+  fzTrailGeo.setAttribute('position', new THREE.BufferAttribute(fzTrailPos, 3).setUsage(THREE.DynamicDrawUsage));
+  fzTrailGeo.setAttribute('color', new THREE.BufferAttribute(fzTrailCol, 4).setUsage(THREE.DynamicDrawUsage));
+  const fzTrailLine = new THREE.Line(fzTrailGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })); fzTrailLine.frustumCulled = false; scene.add(fzTrailLine);
+  function fzDrawTrail(t) { // verblassende Spur hinter dem gewählten Fahrzeug
+    const pts = FZ.trail.slice(-600), n = pts.length;
+    fzTrailLine.visible = n > 1 && S.L.fahrzeuge;
+    if (!fzTrailLine.visible) return;
+    pts.forEach((q, i) => { const a = 1 - clamp((t - q[2]) / 180000, 0, 1); fzTrailPos.set([q[0], 1.2, q[1]], i * 3); fzTrailCol.set([0.05, 0.89, 0.92, a], i * 4); });
+    fzTrailGeo.setDrawRange(0, n); fzTrailGeo.attributes.position.needsUpdate = true; fzTrailGeo.attributes.color.needsUpdate = true;
+  }
+  function fzShow(v) { // Karte zum Fahrzeug: Lage, nächster Halt, Verfolgen
+    if (FZ.sel !== v.id) { FZ.sel = v.id; FZ.follow = null; FZ.trail = []; }
+    const nx = (v.pts || []).find((q, i) => i > 0 && Date.now() < q.a + 1000), dl = nx && nx.delay != null ? Math.round(nx.delay / 60) : null;
+    openCard('<h3>' + esc(v.line) + ' nach ' + esc(v.dir || '?') + '</h3><p class="sub">' + esc(FZ_ART[v.kind]) + (v.op ? ' · ' + esc(v.op) : '') + '</p><dl>'
+      + (nx ? '<dt>Nächster Halt</dt><dd>' + esc(nx.name || '?') + '<span class="s">an ' + clockFmt.format(new Date(nx.a)) + ' Uhr' + (dl ? ' (' + (dl > 0 ? '+' : '') + dl + ' Min.)' : '') + '</span></dd>' : '') + '</dl>'
+      + '<p><button class="wxbtn" id="fzFollow" type="button">' + (FZ.follow === v.id ? 'Verfolgen beenden' : 'Verfolgen') + '</button></p>'
+      + '<p class="note">' + (v.sim ? 'Aus dem Fahrplan berechnet, ohne Verspätungen und Ausfälle. Mit eingeblendeten Live-Daten (unter „Aktuell“) zeigt die Karte die echten Positionen.' : 'Position nach den Echtzeitdaten berechnet, ' + (v.legs ? 'entlang des Gleises' : 'zwischen den Haltestellen') + '.') + ' Das Modell ist eine Miniatur nach Betreiber, Wagenzahl und Länge sind angenommen.</p>');
+    S.card = { type: 'veh', id: v.id };
+    $('#fzFollow', cardBody).onclick = (e) => { FZ.follow = FZ.follow === v.id ? null : v.id; e.target.textContent = FZ.follow === v.id ? 'Verfolgen beenden' : 'Verfolgen'; };
+    flyTo({ tx: v.x, tz: v.z, dist: Math.min(view.dist, 220), phi: Math.min(view.phi, 1.0) }, 900);
+  }
+  canvas.addEventListener('pointerdown', () => { if (FZ.follow) { FZ.follow = null; const b = $('#fzFollow', cardBody); if (b) b.textContent = 'Verfolgen'; } }); // wer die Karte anfasst, löst die Verfolgung
+  // ---- Fahrzeuge aus dem Sollfahrplan (data/fahrten.js): fahren immer, ohne Verbindung zu Dritten; mit Live-Daten ersetzen die echten Positionen sie
+  function fzSimSync() {
+    const FA = window.AL_FAHRTEN; if (!FA || !S.L.fahrzeuge) return;
+    const n = nowB(), day0 = AL.berlinToUTC(n.y, n.mo, n.d, 0, 0), now = Date.now(), di = Math.round((Date.UTC(n.y, n.mo - 1, n.d) - Date.parse(FA.base)) / 864e5);
+    const liveOk = vbbOk && FZ.stand && now - FZ.stand < 100000 && FZ.liveN > 0, want = new Set();
+    if (!liveOk) FA.trips.forEach((tr, ti) => {
+      for (const k of [0, 1]) { // heute und gestern (Fahrten über Mitternacht)
+        const idx = di - k, st = tr[3]; if (idx < 0 || FA.svc[tr[2]][idx] !== '1') continue;
+        const t0 = day0 + (st[0][3] - k * 86400) * 1000, t1 = day0 + (st[st.length - 1][2] - k * 86400) * 1000;
+        if (now < t0 - 2000 || now > t1 + 2000) continue;
+        const id = 'sim:' + ti + ':' + k; want.add(id);
+        if (FZ.list.has(id)) continue;
+        const r = FA.routes[tr[0]], kind = r[1] === 'bus' || r[1] === 'sev' ? 'bus' : /ODEG|Ostdeutsche/i.test(r[2]) ? 'odeg' : 'db';
+        const pts = st.map((q) => ({ x: q[0], z: q[1], a: day0 + (q[2] - k * 86400) * 1000, d: day0 + (q[3] - k * 86400) * 1000 }));
+        const x = pts[0].x, z = pts[0].z, g = fzModel(kind); g.visible = false; FZ.group.add(g);
+        const m = addMarker('veh', '<b>' + esc(r[0]) + '</b>', x, 8, z, () => { const c = FZ.list.get(id); if (c) fzShow(c); }, null);
+        m.el.classList.add('vehicle', kind, 'sim'); m.el.title = r[0] + ' nach ' + (FA.heads[tr[1]] || '?') + ' (Fahrplan)';
+        const v = { id, kind, g, m, x, z, ox: 0, oz: 0, miss: 0, segs: [], sim: true, pts, t0: now, line: r[0], dir: FA.heads[tr[1]] || '', op: r[2] };
+        if (kind === 'bus') v.segs = fzSegs(v); else { v.legs = fzLegsFor(v); const l0 = v.legs[0]; if (l0) { const q = fzLegAt(l0, 0); v.x = q.x; v.z = q.z; } }
+        FZ.list.set(id, v);
+      }
+    });
+    FZ.list.forEach((v, id) => { if (v.sim && !want.has(id)) { fzRemove(v); FZ.list.delete(id); } });
+    if (!liveOk) { const ns = [...FZ.list.values()].filter((v) => v.sim).length; fzSetState('Fahrplan (simuliert), ' + ns + ' Fahrzeuge' + (vbbOk ? '' : ', Live nach Einwilligung unter „Aktuell“')); }
+  }
+  function fzStart() {
+    if (!S.L.fahrzeuge) return;
+    if (!FZ.simTimer) { fzSimSync(); FZ.simTimer = setInterval(fzSimSync, 10000); }
+    if (vbbOk && !FZ.timer) { fzSetState('Live wird geladen …'); fzPoll(); FZ.timer = setInterval(fzPoll, 30000); }
+  }
+  function fzStop() { clearInterval(FZ.timer); FZ.timer = 0; clearInterval(FZ.simTimer); FZ.simTimer = 0; FZ.liveN = 0; FZ.stand = 0; FZ.list.forEach(fzRemove); FZ.list.clear(); FZ.trail = []; FZ.sel = null; FZ.follow = null; fzSetState('ausgeblendet'); S.dirty = true; }
+
   function renderStop() {
     const s = STOPS[S.card.i], g = s.g >= 0 ? FPG[s.g] : null, n = nowB(), sd = S.stopDay || (S.stopDay = { y: n.y, mo: n.mo, d: n.d }); // eigener Tag der Haltestelle, nicht der Tag des Sonnenstands
     const isToday = sd.y === n.y && sd.mo === n.mo && sd.d === n.d, nowMin = n.h * 60 + n.mi;
     let html = '<h3>' + esc(s.n) + '</h3><p class="sub">' + (s.k === 'rail' ? 'Bahnhof / Haltepunkt' : 'Bushaltestelle') + (whereOf(s) ? ' · ' + esc(whereOf(s)) : '') + '</p>';
+    const planStart = html.length;
     if (!g) html += '<p class="note">Zu dieser Haltestelle wurde im Fahrplan keine passende Haltestelle gefunden (Lage oder Name weichen ab).</p>';
     else {
-      const r = fpDeps(g);
+      const RAIL_T = ['bahn', 'sbahn', 'ubahn', 'sev'], modeOk = (ri) => !s.mode || (RAIL_T.indexOf(FP.routes[ri][1]) >= 0) === (s.mode === 'rail');
+      const r = fpDeps(g); if (r.list) r.list = r.list.filter(([m, ri]) => modeOk(ri));
       if (r.list && isToday) { // heute: nur die nächsten 24 Stunden ab jetzt (Rest von heute plus die frühen Abfahrten von morgen), nichts Vergangenes
         const tm = new Date(Date.UTC(n.y, n.mo - 1, n.d + 1)), rt = fpDeps(g, { y: tm.getUTCFullYear(), mo: tm.getUTCMonth() + 1, d: tm.getUTCDate() });
-        r.list = r.list.filter(([m, ri]) => m >= nowMin || (m >= nowMin - 60 && ['bahn', 'sbahn', 'ubahn'].indexOf(FP.routes[ri][1]) >= 0)).concat(rt.list ? rt.list.filter(([m]) => m < nowMin).map((x) => [x[0], x[1], x[2], 1]) : []);
+        r.list = r.list.filter(([m, ri]) => m >= nowMin || (m >= nowMin - 60 && ['bahn', 'sbahn', 'ubahn'].indexOf(FP.routes[ri][1]) >= 0)).concat(rt.list ? rt.list.filter(([m, ri]) => m < nowMin && modeOk(ri)).map((x) => [x[0], x[1], x[2], 1]) : []);
       }
       const dayTxt = dateFmt.format(new Date(Date.UTC(sd.y, sd.mo - 1, sd.d)));
       html += '<div class="daynav"><button class="chip" data-d="-1" aria-label="Vortag">◀</button><b>' + esc(dayTxt) + (isToday ? ' (heute)' : '') + '</b><button class="chip" data-d="1" aria-label="Folgetag">▶</button><button class="chip" data-d="0">Heute</button></div>';
@@ -951,22 +1362,34 @@
           if (next) nextDone = true;
           if (rt[1] === 'sev') sev = true;
           return '<div class="dep' + (past ? ' past' : '') + (next ? ' next' : '') + '"><span class="t">' + AL.hhmm(m) + (tmr ? '<span class="s"> morgen</span>' : '') + '</span><span class="ln ' + esc(rt[1]) + '"' + (rt[1] === 'sev' ? ' title="Bus unter einer Bahnliniennummer, vermutlich Schienenersatzverkehr"' : '') + '>' + esc(rt[0]) + '</span><span class="hd">'
-            + esc(FP.heads[hi]) + '<span class="s">' + esc(opShort(rt[2])) + '</span></span></div>';
+            + esc(FP.heads[hi]) + '<span class="s">' + esc(opShortK(rt[2])) + '</span></span></div>';
         }).join('') + '</div>' + (sev ? '<p class="note">Grau-gelbe Linien: Bus unter einer Bahnliniennummer, vermutlich Schienenersatzverkehr (Schlussfolgerung aus den Daten).</p>' : '');
       }
       html += '<p class="note">Sollfahrplan ohne Echtzeit, ohne Gewähr. Abweichungen, Baustellen und Ausfälle sind nicht enthalten.</p>';
     }
+    // Zwei Reiter statt zwei langer Listen untereinander: Live (nächste 3 Stunden) und Plan (Sollfahrplan der nächsten 24 Stunden bzw. des gewählten Tages)
+    const plan = html.slice(planStart); html = html.slice(0, planStart);
+    const hasLive = VBB_HOSTS.length > 0; // ohne Live-Dienste (ort.json: fahrplan.live_aus) gibt es nur den Plan
+    const tab = hasLive ? (S.stopTab || (vbbOk ? 'live' : 'plan')) : 'plan';
+    html += '<div class="chips tabs" role="tablist"' + (hasLive ? '' : ' hidden') + '>' + [['live', 'Live'], ['plan', 'Plan']].map(([k, l]) => '<button class="chip" role="tab" data-tab="' + k + '">' + l + '</button>').join('') + '</div>'
+      + '<div id="tabLive" role="tabpanel"><div id="liveBox"></div></div><div id="tabPlan" role="tabpanel" hidden>' + plan + '</div>';
     html += sourceLine('Fahrplan: ' + (ORT.betreiberKurz || '') + ' (' + (ORT.lizenz || '') + '), Stand ' + (FP ? fmtYmd(FP.stand.replace(/-/g, '')) : '–') + '; Lage: OpenStreetMap', ORT.lizenzUrl || '#');
-    html = html.replace('</p>', '</p><div id="liveBox"></div>');
     openCard(html); S.card = { type: 'stop', i: s.i };
-    liveFill(s, $('#liveBox', cardBody));
+    let liveDone = false;
+    const showTab = (t) => {
+      S.stopTab = t;
+      $$('[data-tab]', cardBody).forEach((b) => { const on = b.dataset.tab === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+      $('#tabLive', cardBody).hidden = t !== 'live'; $('#tabPlan', cardBody).hidden = t !== 'plan';
+      if (t === 'live' && !liveDone) { liveDone = true; liveFill(s, $('#liveBox', cardBody)); }
+      if (t === 'plan') { const nx = $('.dep.next', cardBody), box = $('#deps', cardBody); if (nx && box) box.scrollTop = Math.max(0, nx.offsetTop - box.offsetTop - 6); }
+    };
+    $$('[data-tab]', cardBody).forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+    showTab(tab);
     $$('[data-d]', cardBody).forEach((b) => { b.onclick = () => {
       const k = +b.dataset.d, t = new Date(k === 0 ? Date.UTC(n.y, n.mo - 1, n.d) : Date.UTC(sd.y, sd.mo - 1, sd.d + k));
       S.stopDay = { y: t.getUTCFullYear(), mo: t.getUTCMonth() + 1, d: t.getUTCDate() };
       renderStop();
     }; });
-    const nx = $('.dep.next', cardBody), box = $('#deps', cardBody);
-    if (nx && box) box.scrollTop = Math.max(0, nx.offsetTop - box.offsetTop - 6);
   }
   function showStop(i) {
     const s = STOPS[i];
@@ -977,16 +1400,24 @@
   }
   function showEvent(e) {
     $$('.mk.sel').forEach((m) => m.classList.remove('sel')); if (e.marker) e.marker.el.classList.add('sel');
-    openCard('<h3>' + esc(e.title) + '</h3><p class="sub">' + (e.dummy ? '<span class="tag unknown">Beispieldaten</span> ' : '') + esc(dateFmt.format(new Date(e.t))) + ', ' + esc(e.from) + (e.to ? '–' + esc(e.to) : '') + ' Uhr</p><dl>'
+    const pl = placeOf(e), head = '<h3>' + esc(e.title) + '</h3><p class="sub">' + (e.dummy ? '<span class="tag unknown">Beispieldaten</span> ' : '') + esc(dateFmt.format(new Date(e.t))) + ', ' + esc(e.from) + (e.to ? '–' + esc(e.to) : '') + ' Uhr</p>', body = '<dl>'
       + '<dt>Ort</dt><dd>' + esc(e.place || 'unbekannt') + (e.placeNote ? '<span class="s">' + esc(e.placeNote) + '</span>' : '') + '</dd><dt>Kategorie</dt><dd>' + esc(e.cat || '–') + '</dd></dl>'
       + (e.desc ? '<p>' + esc(e.desc) + '</p>' : '') + (e.url && !e.dummy ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener">Zur Veranstaltung beim Veranstalter →</a>' : '')
-      + sourceLine(e.dummy ? 'Platzhalter, keine echte Veranstaltung' : (e.source || 'unbekannt'), e.url));
+      + sourceLine(e.dummy ? 'Platzhalter, keine echte Veranstaltung' : (e.source || 'unbekannt'), e.url);
+    if (pl) {
+      const mk = pl.marker && pl.marker.el; // Markierung bleibt am Termin, der Ort wird im zweiten Reiter gezeigt
+      tabbed(head, [{ k: 'termin', label: 'Veranstaltung', html: body }, { k: 'ort', label: 'Ort: ' + esc(pl.name.length > 22 ? pl.name.slice(0, 21) + '…' : pl.name), html: placeHead(pl) + placePane(pl) }], 'termin');
+      if (mk) mk.classList.add('sel');
+    } else openCard(head + body);
     flyTo({ tx: e.x, tz: e.z, dist: Math.min(view.dist, 300), phi: Math.min(view.phi, 1.1) }, 900);
   }
   function showEventsAt(list) {
-    openCard('<h3>' + esc(list[0].place || 'Veranstaltungen') + '</h3><p class="sub">' + list.length + ' Veranstaltung(en)</p>'
-      + list.map((e) => '<button class="item" data-ev="' + EV.indexOf(e) + '"><span class="t">' + esc(e.from) + '</span><span>' + esc(e.title) + '<span class="s">' + esc(dateFmt.format(new Date(e.t))) + '</span></span></button>').join(''));
-    $$('[data-ev]', cardBody).forEach((b) => { b.onclick = () => showEvent(EV[+b.dataset.ev]); });
+    const pl = placeOf(list[0]), head = '<h3>' + esc(list[0].place || 'Veranstaltungen') + '</h3><p class="sub">' + list.length + ' Veranstaltung(en)</p>';
+    if (pl) tabbed(head, [{ k: 'termine', label: 'Termine (' + list.length + ')', html: list.map(evItem).join('') }, { k: 'ort', label: 'Ort', html: placePane(pl) }], 'termine');
+    else {
+      openCard(head + list.map(evItem).join(''));
+      $$('[data-ev]', cardBody).forEach((b) => { b.onclick = () => showEvent(EV[+b.dataset.ev]); });
+    }
   }
   function goOrtsteil(i) {
     const o = OT[i], nA = ROWS.filter((r) => r[4] === i).length, rail = STOPS.filter((s) => s.o === i && s.k === 'rail'), bus = STOPS.filter((s) => s.o === i && s.k === 'bus').length;
@@ -994,7 +1425,7 @@
     const ew = ewText(o), inf = o.info || {};
     openCard('<h3>' + esc(o.n) + '</h3><p class="sub">Ortsteil: ' + esc(ART) + ' ' + esc(ORT_NAME) + '</p><dl>'
       + '<dt>Einwohner</dt><dd>' + (ew ? esc(ew) + '<span class="s">Angabe im Ortsporträt der Gemeinde</span>' : 'keine Angabe der Gemeinde') + '</dd>'
-      + '<dt>Fläche</dt><dd>' + km2(o) + ' km²<span class="s">nach der Grenze in OpenStreetMap</span></dd>'
+      + '<dt>Fläche</dt><dd>' + km2(o) + ' km²<span class="s">nach der Grenze in OpenStreetMap</span></dd>' + (o.hn != null ? '<dt>Höhe</dt><dd>' + nfH(o.hn) + ' m über NHN<span class="s">in der Ortsmitte, Geländemodell</span></dd>' : '')
       + (inf.erstwaehnung ? '<dt>Erwähnt seit</dt><dd>' + inf.erstwaehnung + '</dd>' : '')
       + (inf.sehenswert && inf.sehenswert.length ? '<dt>Sehenswert</dt><dd>' + inf.sehenswert.map(esc).join(', ') + '<span class="s">laut Ortsporträt der Gemeinde</span></dd>' : '')
       + '<dt>Adressen</dt><dd>' + nA + '</dd><dt>Gebäude</dt><dd>' + o.nB + '</dd><dt>Bahnhof</dt><dd>' + (rail.length ? esc(rail[0].n) + ' (DB)' : 'keiner') + '</dd>'
@@ -1012,7 +1443,11 @@
     $$('.pill[data-panel]').forEach((b) => b.classList.toggle('on', b.dataset.panel === S.panel));
     document.body.classList.toggle('has-panel', !!S.panel);
     if (S.panel === 'sun') { applySun(); if (S.spot) scheduleSpot(); }
-    if (S.panel === 'traffic') { trafficFill(); if (window.ALL) window.ALL.baustellen($('#bauBox')); }
+    if (S.panel === 'traffic') {
+      trafficFill();
+      if (window.ALL && ORT.baustellen) window.ALL.baustellen($('#bauBox'));
+      if (window.ALL && ORT.muell && !$('#muellBox').dataset.on) { $('#muellBox').dataset.on = '1'; window.ALL.muell($('#muellBox')); }
+    }
   }
   $$('.pill[data-panel]').forEach((b) => { b.onclick = () => openPanel(b.dataset.panel); });
   $$('[data-close="panel"]').forEach((b) => { b.onclick = () => openPanel(S.panel); });
@@ -1155,8 +1590,19 @@
   function applyLayers() {
     ground.visible = S.L.photo; flat.visible = !S.L.photo; if (!S.L.photo) ensureAreas();
     for (const k in T) { const t = T[k]; if (t.bld && t.bld.mesh) t.bld.mesh.visible = S.L.buildings; if (t.trees && t.trees.mesh) t.trees.mesh.visible = S.L.trees; }
+    FZ.group.visible = S.L.fahrzeuge; if (S.L.fahrzeuge) fzStart(); else fzStop();
+    if (CL.mesh) CL.mesh.visible = S.L.wolken && CL.ok;
+    if (S.L.relief && !RL.mesh) {
+      new THREE.TextureLoader().load('img/relief.png?v=' + (window.AL_TV || ''), (t) => {
+        t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+        const m = new THREE.Mesh(planeGeo(W, H), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+        m.position.set(CX, 0.1, CZ); m.renderOrder = 2; m.visible = S.L.relief; scene.add(m); RL.mesh = m; S.dirty = true;
+      });
+    }
+    if (RL.mesh) RL.mesh.visible = S.L.relief;
     borders.visible = S.L.borders; brwGroup.visible = S.L.brw; updateLegend(); $('#sunShadows').checked = S.L.shadows; applySun(); S.moved = true; S.dirty = true;
   }
+  if (!ORT.gelaende) { const rl = $('[data-layer=relief]'); if (rl && rl.closest('label')) rl.closest('label').hidden = true; } // Relief nur mit DGM (ort.json: bausteine.gelaende)
   $$('[data-layer]').forEach((c) => {
     c.onchange = () => {
       S.L[c.dataset.layer] = c.checked;
@@ -1169,15 +1615,18 @@
     + '<li><b>Straßen, Orte, Haltestellen, Flächen, Grenzen, Öffnungszeiten:</b> © OpenStreetMap-Mitwirkende, <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">ODbL</a>. Öffnungszeiten stammen aus OSM und können veraltet sein.</li>'
     + (BRW ? '<li><b>Bodenrichtwerte:</b> BORIS Brandenburg (Gutachterausschuss, bereitgestellt vom LGB), © GeoBasis-DE/LGB, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a> (Daten geändert), Stichtag ' + esc(fmtIso(BRW.stichtag)) + '. Zone und Werte wie veröffentlicht, nur Euro je m². Ein Bodenrichtwert ist ein durchschnittlicher Lagewert und kein Verkehrswert. Maßgeblich ist die amtliche Auskunft (<a href="https://boris.brandenburg.de" target="_blank" rel="noopener">BORIS Brandenburg</a>).</li>' : '')
     + '<li><b>Bäume:</b> symbolisch. Sie werden in Waldflächen zufällig verteilt und zeigen keine echten Einzelbäume.</li>'
+    + '<li><b>Geländehöhen und Relief:</b> Digitales Geländemodell (DGM) der LGB, © GeoBasis-DE/LGB, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a> (Daten geändert), auf 10 m gemittelt. Die Höhen (Meter über NHN) gelten für die Mitte des Gebäudes, Ortes oder Ortsteils. Das Relief ist stark überhöht (Faktor 6) und nur eine Schummerung auf dem Luftbild, das Gelände selbst bleibt flach.</li>'
+    + '<li><b>Dachfarbe und Solar-Eignung:</b> Die Dachfarbe ist der mittlere Farbton des Dachs im Luftbild (© GeoBasis-DE/LGB, dl-de/by-2-0, Daten geändert). Schatten, Bäume und die Schrägsicht des Luftbilds verfälschen einzelne Dächer. Die Solar-Eignung rechnet aus Neigung und Ausrichtung der LoD2-Dachflächen die Strahlung relativ zur besten Lage (Süd, 35 Grad). Nutzbar sind 75 % einer geneigten und 50 % einer flachen Fläche bei 0,21 kWp je m², ' + SOL_KWH + ' kWh je kWp und Jahr bei bester Ausrichtung. Keine Verschattung, keine Statik, kein Denkmalschutz, keine Anlagenplanung: grobe Schätzung ohne Gewähr.</li>'
     + '<li><b>Besonnung und Schatten:</b> Schätzung ohne Gewähr. Berücksichtigt nur Gebäude aus LoD2, keine Bäume, kein Gelände.</li>'
     + '<li><b>Fahrpläne (Bus und Bahn):</b> Sollfahrplan: ' + esc(ORT.betreiber || '') + ', <a href="' + esc(ORT.lizenzUrl || '#') + '" target="_blank" rel="noopener">' + esc(ORT.lizenz || '') + '</a>, ' + (FP ? 'Stand ' + esc(FP.stand) + ', gültig ' + esc(fmtYmd(FP.feedFrom)) + ' bis ' + esc(fmtYmd(FP.feedTo)) : 'nicht geladen') + '. Auf die Haltestellen des Gebiets gefiltert (Daten geändert). Ohne Gewähr.</li>'
     + '<li><b>Veranstaltungen:</b> ' + (((window.AL_EVENTS_AUTO || {}).quellen || []).length ? esc(window.AL_EVENTS_AUTO.quellen.join(', ')) : 'von Hand gepflegt (events.js)') + ((window.AL_EVENTS_AUTO || {}).stand ? ' (gelesen am ' + esc(fmtIso(window.AL_EVENTS_AUTO.stand)) + ')' : '') + '. Übernommen werden nur Titel, Datum, Uhrzeit und Ort mit Link zur Originalseite.</li>'
     + '<li><b>Öffnungszeiten und Kontakt der Orte:</b> aus OpenStreetMap, ergänzt durch den Wortlaut der eigenen Webseite des Ortes, wo dort maschinell lesbar vorhanden (mit Lesedatum und Link in der Ortskarte). Ohne Angabe steht „nicht verifiziert“. Zeiten ändern sich, bitte beim Betrieb nachfragen.</li>'
     + '<li><b>Schriften:</b> Sora und JetBrains Mono, SIL Open Font License 1.1, lokal eingebunden.</li>'
-    + '<li><b>Wetter (nur auf Wunsch):</b> Deutscher Wetterdienst (DWD, offene Daten nach GeoNutzV) über die freie Schnittstelle <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a>. Der Browser ruft die Daten erst nach Ihrer Zustimmung direkt dort ab. Dazu gehören die amtlichen Wetterwarnungen des DWD.</li>'
+    + '<li><b>Wetter (nur auf Wunsch):</b> Deutscher Wetterdienst (DWD, offene Daten nach GeoNutzV) über die freie Schnittstelle <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a>. Der Browser ruft die Daten erst nach Ihrer Zustimmung direkt dort ab. Dazu gehören die amtlichen Wetterwarnungen des DWD. Die Wolkenebene auf der Karte ist eine Veranschaulichung: Sie folgt dem gemeldeten Bedeckungsgrad und der Windrichtung, zieht im Zeitraffer und zeigt keine echten Wolkenformen.</li>'
     + '<li><b>Luftqualität (nur auf Wunsch):</b> Modelldaten des Copernicus-Dienstes CAMS über <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener">Open-Meteo</a>, CC BY 4.0, keine Messung vor Ort. Abruf erst nach Ihrer Zustimmung direkt aus dem Browser.</li>'
-    + '<li><b>Baustellen und Sperrungen (nur auf Wunsch):</b> © Landesbetrieb Straßenwesen Brandenburg, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2.0</a>, über den Geodienst isk.geobasis-bb.de. Abruf erst nach Ihrer Zustimmung direkt aus dem Browser.</li>'
-    + (VBB_HOSTS.length ? '<li><b>Live-Abfahrten und Meldungen Bahn und Bus (nur auf Wunsch):</b> Echtzeitdaten über die freien, inoffiziellen Schnittstellen ' + esc(VBB_HOSTS.map((h) => h.replace('https://', '')).join(' und ')) + ' (<a href="https://github.com/public-transport/transport.rest" target="_blank" rel="noopener">transport.rest</a>). Abruf erst nach Ihrer Zustimmung direkt aus dem Browser. Ohne Gewähr.</li>' : '')
+    + (ORT.baustellen ? '<li><b>Baustellen und Sperrungen (nur auf Wunsch):</b> © Landesbetrieb Straßenwesen Brandenburg, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2.0</a>, über den Geodienst isk.geobasis-bb.de. Abruf erst nach Ihrer Zustimmung direkt aus dem Browser.</li>' : '')
+    + (VBB_HOSTS.length ? '<li><b>Live-Abfahrten und Meldungen Bahn und Bus (nur auf Wunsch):</b> Echtzeitdaten (Abfahrten, Meldungen, Fahrzeugpositionen für die bewegten Fahrzeugmodelle; die Modelle sind Miniaturen nach Betreiber, die Wagenzahl ist angenommen) über die freien, inoffiziellen Schnittstellen ' + esc(VBB_HOSTS.map((h) => h.replace('https://', '')).join(' und ')) + ' (<a href="https://github.com/public-transport/transport.rest" target="_blank" rel="noopener">transport.rest</a>). Abruf erst nach Ihrer Zustimmung direkt aus dem Browser. Ohne Gewähr.</li>' : '')
+    + (ORT.muell ? '<li><b>Müllabfuhr (nur auf Wunsch):</b> eingebettete Abfuhrabfrage: <a href="' + esc(ORT.muell.seite || ORT.muell.url) + '" target="_blank" rel="noopener">' + esc(ORT.muell.name) + '</a>. Die Termine stammen von dort und werden hier nicht gespeichert.' + (ORT.muell.hinweis ? ' ' + esc(ORT.muell.hinweis) : '') + '</li>' : '')
     + '<li><b>Aktualisierung:</b> Orte, Haltestellen und Fahrplan wöchentlich' + (NEWS.stand ? ' (letzter Lauf ' + esc(fmtIso(NEWS.stand)) + ')' : '') + ', Gebäude und Adressen vierteljährlich, Bodenrichtwerte jährlich.</li>'
     + (ORTSTEILE_SEITE ? '<li><b>Ortsinformationen (Einwohnerzahl, Ersterwähnung, Sehenswertes):</b> Ortsporträts auf der <a href="' + ORTSTEILE_SEITE + '" target="_blank" rel="noopener">Website: ' + esc(ORT_NAME) + '</a>' + (M.ortsteilInfo && M.ortsteilInfo.gelesen ? ' (gelesen am ' + esc(fmtIso(M.ortsteilInfo.gelesen)) + ')' : '') + '. Übernommen werden nur einzelne Angaben, keine Texte und keine Personen. Einwohnerzahlen sind Angaben aus den Texten ohne einheitlichen Stand, bei ' + OT.filter((o) => !ewText(o)).length + ' von ' + OT.length + ' Ortsteilen fehlt sie. Fläche, Adress- und Gebäudezahl stammen aus eigenen Daten (Grenze: OpenStreetMap, Adressen und Gebäude: LGB).</li>' : '')
     + '<li><b>3D-Darstellung:</b> three.js (MIT-Lizenz), läuft lokal im Browser, es werden keine Daten an Dritte gesendet.</li></ul><p class="note">Prototyp. Keine Gewähr für Richtigkeit und Vollständigkeit.</p>';
@@ -1203,6 +1652,7 @@
       if (t && t.bld) { const k = S.pending.k; S.pending = null; if (t.data.b[k]) selectBuilding(t.key, k); }
       else if (t && t.st === 'failed') S.pending = null;
     }
+    if (FZ.list.size && S.L.fahrzeuge) { fzTick(); S.dirty = true; } // Fahrzeuge bewegen sich: jedes Bild neu zeichnen
     if (S.dirty) { S.dirty = false; renderer.render(scene, camera); updateMarkers(); }
   }
   resize(); recolorAll(); renderEvents(); renderPlaces(); applyLayers(); applyView();
@@ -1222,8 +1672,90 @@
     const m = /ortsteil=(\d+)/.exec(location.hash);
     if (m && OT[+m[1]]) setTimeout(() => goOrtsteil(+m[1]), 700);
   })();
+  // ---- Wolken über der Karte: nach dem Bedeckungsgrad des DWD (cloud_cover) und der Windrichtung, nur mit eingeblendeten Wetterdaten.
+  // Eine halbtransparente Ebene mit zufälligem, nahtlos kachelbarem Wolkenmuster; zieht im Zeitraffer mit dem Wind und blendet aus, wenn man nah herangeht.
+  (function wolken() {
+    if (!window.ALW || !THREE.CanvasTexture) return;
+    window.ALW.ready(function (A) {
+      const Wt = A && A.fresh && A.data;
+      if (!Wt || Wt.wolken == null || Wt.wolken < 8) return;
+      const cover = Math.min(0.82, Math.min(100, Wt.wolken) / 100), PW = W + 36000, PH = H + 36000;
+      // Wolkenmuster aus Rauschen (fbm mit Domänenverzerrung), in der Grafikkarte aus Weltkoordinaten gerechnet: keine Kachelung, kein sich wiederholendes Muster
+      const dayN = Math.floor(Date.now() / 864e5), mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false,
+        uniforms: { uOff: { value: new THREE.Vector2((dayN * 7919) % 90000, (dayN * 104729) % 90000) }, uCover: { value: cover }, uOpacity: { value: 0 }, uColor: { value: new THREE.Color(1, 1, 1) } },
+        vertexShader: 'varying vec2 vP; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vP = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }',
+        fragmentShader: 'precision highp float; uniform vec2 uOff; uniform float uCover, uOpacity; uniform vec3 uColor; varying vec2 vP;'
+          + 'float h(vec2 p){ vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }'
+          + 'float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h(i), h(i + vec2(1., 0.)), f.x), mix(h(i + vec2(0., 1.)), h(i + vec2(1., 1.)), f.x), f.y); }'
+          + 'float fbm(vec2 p){ float v = 0., a = .5; mat2 r = mat2(.8, -.6, .6, .8); for(int i = 0; i < 6; i++){ v += a * n(p); p = r * p * 2.03 + 17.; a *= .5; } return v; }'
+          + 'void main(){ vec2 p = (vP - uOff) / 8000.; vec2 q = vec2(fbm(p * .6 + 3.1), fbm(p * .6 - 5.4));'
+          + ' float d = fbm(p + (q - .5) * 2.2) * .75 + fbm(p * 3.7 + q * 2.) * .25;'
+          + ' float thr = .5 + (.5 - uCover) * .42; float a = smoothstep(thr, thr + .13, d); float s = smoothstep(thr, thr + .3, d);'
+          + ' gl_FragColor = vec4(mix(uColor * .8, uColor, s), a * uOpacity); }'
+      });
+      const mesh = new THREE.Mesh(planeGeo(PW, PH), mat);
+      mesh.position.set(CX, 1900, CZ); mesh.renderOrder = 5; mesh.frustumCulled = false;
+      scene.add(mesh); CL.mesh = mesh; CL.ok = true;
+      const row = $('#wolkenRow'); if (row) row.hidden = false;
+      const dirDeg = Wt.windrichtung != null ? Wt.windrichtung : 270, ms = Math.max(2, (Wt.wind || 10) / 3.6), ZEITRAFFER = 15;
+      const vE = -Math.sin(dirDeg * Math.PI / 180) * ms * ZEITRAFFER, vN = -Math.cos(dirDeg * Math.PI / 180) * ms * ZEITRAFFER; // Richtung, in die der Wind weht (m/s im Zeitraffer)
+      const nightCol = new THREE.Color(0x35435c), dayCol = new THREE.Color(0xffffff);
+      let t0 = performance.now();
+      function tick() {
+        const now = performance.now(), dt = (now - t0) / 1000; t0 = now;
+        const fade = Math.max(0, Math.min(1, (camera.position.y - 2300) / 3200)), on = S.L.wolken && fade > 0.01;
+        mesh.visible = S.L.wolken;
+        if (!on) { if (mat.uniforms.uOpacity.value !== 0) { mat.uniforms.uOpacity.value = 0; S.dirty = true; } return; }
+        mat.uniforms.uOff.value.x += vE * dt; mat.uniforms.uOff.value.y -= vN * dt; // z zeigt nach Süden, vN ist die Nordkomponente
+        mat.uniforms.uOpacity.value = 0.46 * fade * (0.6 + 0.4 * cover);
+        mat.uniforms.uColor.value.copy(nightCol).lerp(dayCol, Math.max(0, Math.min(1, (sunDir.y + 0.08) / 0.3)));
+        S.dirty = true;
+      }
+      setInterval(tick, 250); tick();
+      applyLayers();
+    });
+  })();
+  // ---- Link zum Teilen: Kamera, Ebenen, Einfärbung, Sonnenstand (nur wenn verstellt) und gewählter Ort stehen im Adressteil (#k=…); nichts davon verlässt den Browser
+  const LKEYS = ['photo', 'buildings', 'trees', 'places', 'stops', 'fahrzeuge', 'events', 'labels', 'borders', 'roads', 'shadows', 'brw', 'wolken', 'relief'];
+  function toast(t) { const el = $('#toast'); if (!el) return; el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, 2600); }
+  function shareHash() {
+    const r = (v, n) => +v.toFixed(n), n = nowB();
+    const q = ['k=' + [r(view.tx, 0), r(view.tz, 0), r(view.theta, 3), r(view.phi, 3), r(view.dist, 0)].join(',')];
+    q.push('l=' + LKEYS.filter((k) => S.L[k]).join('.'));
+    if (S.colorMode !== 'nutzung') q.push('c=' + S.colorMode);
+    if (S.sun.y !== n.y || S.sun.mo !== n.mo || S.sun.d !== n.d || Math.abs(S.sun.min - (n.h * 60 + n.mi)) > 30) q.push('s=' + [S.sun.y, S.sun.mo, S.sun.d, S.sun.min].join('-'));
+    if (S.card && S.card.type === 'stop' && STOPS[S.card.i]) q.push('h=' + encodeURIComponent(STOPS[S.card.i].name || ''));
+    else { const p = PLACES.find((x) => x.marker && x.marker.el.classList.contains('sel')); if (p && p.osm) q.push('o=' + encodeURIComponent(p.osm)); }
+    return q.join('&');
+  }
+  function shareLink() { return location.origin + location.pathname + '#' + shareHash(); }
+  $('#bShare').onclick = () => {
+    const u = shareLink();
+    try { history.replaceState(null, '', '#' + shareHash()); } catch (e) { /* egal */ }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(() => toast('Link kopiert'), () => { toast('Kopieren nicht möglich, Adresse oben im Browser nutzen'); });
+    else toast('Adresse oben im Browser kopieren');
+  };
+  (function ansichtAusLink() {
+    const h = location.hash.replace(/^#/, ''); if (!h || /(^|&)ortsteil=/.test(h)) return;
+    const get = (k) => { const m = new RegExp('(?:^|&)' + k + '=([^&]*)').exec(h); return m ? decodeURIComponent(m[1]) : null; };
+    const k = get('k'), l = get('l'), c = get('c'), s = get('s'), o = get('o'), hs = get('h');
+    if (l !== null) {
+      const on = new Set(l.split('.'));
+      LKEYS.forEach((key) => { S.L[key] = on.has(key); const el = $('[data-layer=' + key + ']'); if (el) el.checked = S.L[key]; });
+      applyLayers();
+    }
+    if (c && ['nutzung', 'hoehe', 'brw', 'dach', 'solar', 'einheitlich'].indexOf(c) >= 0) { const r = $('input[name=colormode][value=' + c + ']'); if (r) { r.checked = true; r.onchange(); } }
+    if (s && /^\d{4}-\d{1,2}-\d{1,2}-\d{1,4}$/.test(s)) { const a = s.split('-').map(Number); setSun({ y: a[0], mo: a[1], d: a[2], min: Math.min(1439, a[3]) }); }
+    if (o) { const i = PLACES.findIndex((p) => p.osm === o); if (i >= 0) showPlace(i, false); }
+    else if (hs) { const i = STOPS.findIndex((p) => p.name === hs); if (i >= 0) showStop(i); }
+    if (k && /^-?[\d.]+(,-?[\d.]+){4}$/.test(k)) {
+      const a = k.split(',').map(Number); anim = null;
+      Object.assign(view, { tx: a[0], tz: a[1], theta: a[2], phi: a[3], dist: a[4] }); applyView();
+    }
+  })();
   if (matchMedia('(max-width: 900px)').matches) $('#colorpanel').open = false; // auf kleinen Bildschirmen zugeklappt starten
   requestAnimationFrame(frame);
   setTimeout(hideLoading, 8000);
-  window.AL_DEBUG = { BRW, brwAt, showBrw, STOPS, FP, setSun, showStop, S, view, T, CELLS, scene, camera, renderer, applyView, flyTo, occluded, selectBuilding, goAddress, ROWS, STREETS, OT };
+  window.AL_DEBUG = { FZ, fzAtLegs, RG, BRW, brwAt, showBrw, STOPS, FP, setSun, showStop, S, view, T, CELLS, scene, camera, renderer, applyView, flyTo, occluded, selectBuilding, goAddress, ROWS, STREETS, OT };
 })();

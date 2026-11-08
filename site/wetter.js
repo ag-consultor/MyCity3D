@@ -24,7 +24,7 @@
     var rows = (fc.weather || []).filter(function (r) { return r.temperature != null; });
     return {
       stand: now.toISOString(), messung: w.timestamp, temp: w.temperature, wind: w.wind_speed_10 != null ? w.wind_speed_10 : w.wind_speed_60, boe: w.wind_gust_speed_10,
-      wolken: w.cloud_cover, regen60: w.precipitation_60, feuchte: w.relative_humidity, sicht: w.visibility, bedingung: w.condition, icon: w.icon,
+      wolken: w.cloud_cover, windrichtung: w.wind_direction_10 != null ? w.wind_direction_10 : w.wind_direction_60, regen60: w.precipitation_60, feuchte: w.relative_humidity, sicht: w.visibility, bedingung: w.condition, icon: w.icon,
       stationen: (cur.sources || []).filter(function (x) { return x.distance < 20000; }).map(function (x) { return x.station_name; }).slice(0, 3),
       vorhersage: rows.filter(function (r, i) { return i % 3 === 0; }).slice(0, 9).map(function (r) {
         return { t: r.timestamp, temp: r.temperature, icon: r.icon, bedingung: r.condition, regen: r.precipitation, wahrsch: r.precipitation_probability, wolken: r.cloud_cover };

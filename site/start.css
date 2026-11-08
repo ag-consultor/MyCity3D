@@ -77,7 +77,7 @@ section { scroll-margin-top: 80px; }
 .ot-liste a { display: flex; align-items: baseline; gap: 12px; padding: 7px 0; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line2); }
 .ot-liste a::before { counter-increment: ot; content: counter(ot, decimal-leading-zero); font: 400 11px/1 var(--mono); color: var(--muted); }
 .ot-liste a:hover { color: var(--cyan-ink); }
-.ot-liste a, .logo { white-space: nowrap; } /* Ortsnamen ("Altes Lager") nicht umbrechen */
+.ot-liste a, .logo { white-space: nowrap; } /* Ortsnamen ("Neue Siedlung") nicht umbrechen */
 
 .foot { max-width: 1240px; margin: clamp(48px, 7vw, 96px) auto 0; padding: 24px clamp(16px, 5vw, 64px) 40px; border-top: 1px solid var(--line2); color: var(--muted); font-size: 12px; }
 .foot p { margin: 0 0 8px; max-width: 60em; }

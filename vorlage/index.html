@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{{CSP}}">
 <title>{{NAME}} in 3D - {{UNTERTITEL}}</title>
 <meta name="description" content="{{BESCHREIBUNG}}">
 <link rel="icon" href="favicon.svg?v=4c7ba633" type="image/svg+xml">
@@ -13,7 +14,7 @@
 <link rel="stylesheet" href="fonts.css?v=ddbc90c1">
 <link rel="stylesheet" href="wetter.css?v=1e686de1">
 <link rel="stylesheet" href="start.css?v=564a9d8d">
-<link rel="stylesheet" href="lage.css?v=8a729302">
+<link rel="stylesheet" href="lage.css?v=c6612925">
 
 </head>
 <body>
@@ -68,6 +69,7 @@
     <div class="lage-grid">
       <article class="lage-card" id="lageLuft"></article>
       <article class="lage-card" id="lageBau"></article>
+      <article class="lage-card" id="lageMuell"></article>
     </div>
   </section>
 
@@ -131,10 +133,11 @@
 <script src="data/news.js?v=47c2de91"></script>
 <script src="data/stand.js?v=366a5130"></script>
 <script src="rechtliches.js?v=492551aa"></script>
-<script src="wetter.js?v=27395737"></script>
+<script src="wetter.js?v=7ec3b4fc"></script>
 <script src="start_wetter.js?v=ce2d7a39"></script>
 <script src="lage.js?v=352dcf81"></script>
-<script>if (window.ALL) { ALL.luft(document.getElementById('lageLuft')); ALL.baustellen(document.getElementById('lageBau')); }</script>
+<script src="start_lage.js?v=7f8a0a80"></script>
 <script src="start.js?v=a3aaddad"></script>
+<script src="live-alle.js?v=65b9e378"></script>
 </body>
 </html>

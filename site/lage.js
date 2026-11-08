@@ -63,7 +63,7 @@
   }
   function eintrag(g) {
     var kurz = g.text.replace(/\n{2,}/g, '\n').trim(), erst = kurz.split('\n')[0];
-    return '<details class="lgbau"><summary><b>' + esc(g.strasse) + '</b> · ' + esc(g.ort.replace(/\s*\(Teltow-Fläming\)/, '')) + ' <span class="lgtag' + (g.sperr ? ' s' : '') + '">' + (g.sperr ? 'Sperrung' : 'Baustelle') + '</span>'
+    return '<details class="lgbau"><summary><b>' + esc(g.strasse) + '</b> · ' + esc(g.ort.replace(/\s*\([^)]*\)\s*$/, '')) + ' <span class="lgtag' + (g.sperr ? ' s' : '') + '">' + (g.sperr ? 'Sperrung' : 'Baustelle') + '</span>'
       + '<span class="lgz">' + dmy(g.von) + ' bis ' + dmy(g.bis) + (g.von > new Date().toISOString().slice(0, 10) ? ' (geplant)' : '') + (erst ? ' · ' + esc(erst.slice(0, 90)) : '') + '</span></summary>'
       + '<p class="lgd">' + esc(kurz.slice(0, 700)).replace(/\n/g, '<br>') + '</p></details>';
   }
@@ -84,5 +84,23 @@
     })['catch'](function () { box.innerHTML = '<p class="lgn">Baustellen zurzeit nicht abrufbar. <a href="#" data-lg-off>Ausblenden</a></p>'; bind(box, KEY, again); });
   }
 
-  window.ALL = { luft: luft, baustellen: baustellen };
+  // ------------------------------------------------------------------------- Muellabfuhr (optional, nur wenn ort.json "bausteine.muellabfuhr" eintraegt)
+  // Das Formular des Entsorgers wird unveraendert eingebettet (dieselbe Adresse, die er auf der eigenen Seite nutzt). Wir speichern und kopieren keine Termine.
+  // Ein Beispiel (Suedbrandenburg: SBAZV) steht in ort.json; die Einbettung ist ein eigener Schalter, weil Entsorger dabei meist ein Cookie setzen.
+  function muell(box) {
+    var M = (window.ORT || {}).muell;
+    if (!box || !M || !M.url) return;
+    var KEY = 'alw-muell', again = function () { muell(box); };
+    if (!ok(KEY)) {
+      var host = M.url.replace(/^https?:\/\//, '').split('/')[0];
+      box.innerHTML = consentHtml('Müllabfuhr', 'Abfuhrtermine für Ihre Straße.', host, 'Abfuhrabfrage: ' + esc(M.name || host) + (M.hinweis ? '; ' + esc(M.hinweis) : ''));
+      bind(box, KEY, again); return;
+    }
+    box.innerHTML = '<div class="lg"><b class="lgt">Müllabfuhr</b><p class="lgn">' + esc(M.anleitung || 'Ort wählen, dann Straße und Hausnummer.') + '</p>'
+      + '<iframe class="lgframe" src="' + esc(M.url) + '" title="Abfuhrtermine: ' + esc(M.name || '') + '" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe>'
+      + '<p class="lgn">Angaben von ' + (M.seite ? '<a href="' + esc(M.seite) + '" target="_blank" rel="noopener">' + esc(M.name || M.seite) + '</a>' : esc(M.name || '')) + ', nicht von dieser Seite; maßgeblich ist dessen Auskunft. <a href="' + esc(M.url) + '" target="_blank" rel="noopener">In neuem Fenster öffnen</a> · <a href="#" data-lg-off>Müllabfuhr ausblenden</a></p></div>';
+    bind(box, KEY, again);
+  }
+
+  window.ALL = { luft: luft, baustellen: baustellen, muell: muell };
 })();
