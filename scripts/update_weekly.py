@@ -145,6 +145,7 @@ def main():
     if "--skip-gtfs" not in a:
         download_gtfs()
         run("prepare_fahrplan.py")
+        run("prepare_fahrten.py", must=False)  # Fahrten fuer Fahrzeuge auf der Karte; faellt es aus, bleibt der alte Stand
     run("prepare_gemeinde.py")
 
     new = snapshot()

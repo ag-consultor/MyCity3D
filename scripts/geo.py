@@ -70,6 +70,22 @@ def utm33_to_latlon(E, N):
     return math.degrees(lat), math.degrees(lon)
 
 
+def latlon_to_utm33(lat, lon):
+    """Breite/Laenge in Grad -> ETRS89 / UTM 33N (EPSG:25833), Krueger-Reihe (Gegenstueck zu utm33_to_latlon)."""
+    a, f, k0 = 6378137.0, 1 / 298.257222101, 0.9996
+    n = f / (2 - f)
+    A = a / (1 + n) * (1 + n ** 2 / 4 + n ** 4 / 64)
+    alpha = [n / 2 - 2 * n ** 2 / 3 + 5 * n ** 3 / 16, 13 * n ** 2 / 48 - 3 * n ** 3 / 5, 61 * n ** 3 / 240]
+    phi, dl = math.radians(lat), math.radians(lon - 15.0)
+    q = 2 * math.sqrt(n) / (1 + n)
+    t = math.sinh(math.atanh(math.sin(phi)) - q * math.atanh(q * math.sin(phi)))
+    xi_p = math.atan2(t, math.cos(dl))
+    eta_p = math.atanh(math.sin(dl) / math.sqrt(1 + t * t))
+    xi = xi_p + sum(alpha[j] * math.sin(2 * (j + 1) * xi_p) * math.cosh(2 * (j + 1) * eta_p) for j in range(3))
+    eta = eta_p + sum(alpha[j] * math.cos(2 * (j + 1) * xi_p) * math.sinh(2 * (j + 1) * eta_p) for j in range(3))
+    return 500000.0 + k0 * A * eta, k0 * A * xi
+
+
 def pip(x, z, ring):
     """Punkt-in-Polygon (Strahlverfahren); ring = [(x,z),...]."""
     c = False

@@ -20,8 +20,9 @@ def js_var(path, name):
 
 
 # 1. Pflichtdateien
-for f in ("index.html", "karte.html", "wetter.js", "wetter.css", "wetter-karte.js", "start_wetter.js", "lage.js", "lage.css", "start.css", "start.js", "fonts.css", "data/stand.js", "data/ort.js", "fonts/sora-400.woff2", "style.css", "events.js", "rechtliches.js", "js/app.js", "js/util.js", "js/three.min.js",
-          "data/meta.js", "data/addr.js", "data/fahrplan.js", "data/brw.js", "data/news.js", "data/areas.js", "data/events_auto.js",
+for f in ("index.html", "karte.html", "wetter.js", "wetter.css", "wetter-karte.js", "start_wetter.js", "lage.js", "lage.css", "live-alle.js", "start_lage.js",
+          "start.css", "start.js", "fonts.css", "data/stand.js", "data/ort.js", "data/tv.js", "fonts/sora-400.woff2", "style.css", "events.js", "rechtliches.js", "js/app.js", "js/util.js", "js/three.min.js",
+          "data/meta.js", "data/addr.js", "data/fahrplan.js", "data/fahrten.js", "data/gleise.js", "data/brw.js", "data/news.js", "data/areas.js", "data/events_auto.js",
           "img/overview.jpg"):
     if not os.path.exists(os.path.join(SITE, f)):
         fehler.append("fehlt: site/" + f)

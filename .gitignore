@@ -20,3 +20,4 @@ site/karte.html
 # Eigene Ergaenzungen des Betreibers (Korrekturen, Zusatzdaten) gehoeren nicht in die Vorlage
 data/ergaenzung/*
 !data/ergaenzung/.gitkeep
+!data/ergaenzung/*.beispiel.json

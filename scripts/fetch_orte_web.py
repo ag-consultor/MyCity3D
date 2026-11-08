@@ -336,7 +336,7 @@ TEL_SKIP_CTX = re.compile(r"(?i)ansprechpartner|hotline|bewerber|pressekontakt|p
 
 
 def mail_fits(mail, host):
-    """E-Mail passt zur Seite: gleiche Domain (auch Teilstueck, z. B. niedergoersdorf.de zu gemeinde-niedergoersdorf.de) oder Freemail."""
+    """E-Mail passt zur Seite: gleiche Domain (auch Teilstueck, z. B. beispielort.de zu gemeinde-beispielort.de) oder Freemail."""
     dom = mail.split("@", 1)[1]
     h = host.lower().removeprefix("www.")
     if dom in FREEMAIL:

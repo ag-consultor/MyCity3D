@@ -19,7 +19,7 @@ def js(path, var):
 
 def lgb_abruf():
     dat = []
-    for dp, _, fs in os.walk(os.path.join(ROOT, "data", "raw")):  # auch Unterordner (lod2/, addr/ beim Erstaufbau)
+    for dp, _, fs in os.walk(os.path.join(ROOT, "data", "raw")):  # auch Unterordner (lod2/, addr/ bei neuem Abruf)
         for fn in fs:
             f = os.path.join(dp, fn)
             if re.search(r"lod2|alkis_buildings|addr", f.lower()) and not re.search(r"test|cap_", fn.lower()):

@@ -31,16 +31,43 @@ def werte():
         "BESCHREIBUNG": ORT.get("kurzbeschreibung", ""),
         "KOORD": grad(LAT0, "N", "S") + " · " + grad(LON0, "O", "W"),
         "NB_NAME": nb["name"] if nb else "Nachbarort",
+        "CSP": csp(),
         "BETREIBER": fp["betreiber"],
         "BETREIBER_KURZ": fp.get("betreiber_kurz", fp["betreiber"]),
         "FAHRPLAN_LIZENZ": fp["lizenz"],
     }
 
 
+def bausteine():
+    """Optionale Bausteine aus ort.json (Abschnitt "bausteine"); fehlt der Abschnitt, sind alle aus."""
+    b = ORT.get("bausteine") or {}
+    m = b.get("muellabfuhr")
+    return {"baustellen": bool(b.get("baustellen")), "gelaende": bool(b.get("gelaende")), "muell": m if (m and m.get("url")) else None}
+
+
+def csp():
+    """Inhaltsrichtlinie (Content-Security-Policy) als meta-Tag: nur eigene Dateien, Verbindungen nur zu den Diensten, die ort.json einschaltet."""
+    fp = ORT["fahrplan"]
+    b = bausteine()
+    connect = ["'self'", "https://api.brightsky.dev", "https://air-quality-api.open-meteo.com"]
+    if b["baustellen"]:
+        connect.append("https://isk.geobasis-bb.de")
+    if not fp.get("live_aus"):
+        connect += fp.get("live_hosts", [])
+    s = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src "
+         + " ".join(connect))
+    if b["muell"]:
+        m = re.match(r"(https?://[^/]+)", b["muell"]["url"])
+        if m:
+            s += "; frame-src " + m.group(1)
+    return s + "; object-src 'none'; base-uri 'self'; form-action 'self'"
+
+
 def ort_js():
     nb = ORT.get("nachbarort")
     fp = ORT["fahrplan"]
     v = ORT.get("veroeffentlichung", {})
+    b = bausteine()
     o = {
         "name": ORT["name"], "art": ORT.get("art", "Gemeinde"), "land": ORT["land"]["name"],
         "nb": nb["name"] if nb else None,
@@ -51,6 +78,8 @@ def ort_js():
         "lizenz": fp["lizenz"], "lizenzUrl": fp.get("lizenz_url", ""),
         "liveHosts": [] if fp.get("live_aus") else fp.get("live_hosts", []),
         "impressum": v.get("impressum_url", ""), "datenschutz": v.get("datenschutz_url", ""),
+        "baustellen": b["baustellen"], "gelaende": b["gelaende"], "muell": b["muell"],
+        "solarKwh": (ORT.get("bausteine") or {}).get("solar_kwh_je_kwp"), "betreiberKuerzel": fp.get("betreiber_kuerzel", {}),
     }
     return "window.ORT = " + json.dumps(o, ensure_ascii=False) + ";\n"
 

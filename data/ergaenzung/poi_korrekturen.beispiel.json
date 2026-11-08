@@ -1,0 +1,19 @@
+{
+  "hinweis": "Beispiel, erfunden. Kopie als poi_korrekturen.json anlegen (diese Datei wird nicht gelesen) und eigene Eintraege eintragen. Beschreibung: docs/KORREKTUREN.md",
+  "korrekturen": [
+    {
+      "osm": "node/123456789",
+      "name": "Pension Beispiel",
+      "alt": "Pension Muster",
+      "adresse": "Beispielstraße 1, Beispielort",
+      "quelle": "Mitteilung des Betreibers per E-Mail",
+      "datum": "2026-01-15",
+      "web": "https://www.example.org/",
+      "tel": "01234 567890",
+      "mail": "info@example.org",
+      "wt": "Anreise ab 15 Uhr, Abreise bis 11 Uhr",
+      "wq": "https://www.example.org/anreise",
+      "wg": "2026-01-15"
+    }
+  ]
+}

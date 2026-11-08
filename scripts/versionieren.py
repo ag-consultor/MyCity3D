@@ -15,8 +15,27 @@ SEITEN = ("index.html", "karte.html", "impressum.html", "datenschutz.html")
 sys.stdout.reconfigure(encoding="utf-8")
 
 
+def kachelkennung():
+    """Gemeinsame Kennung aller Kacheln (data/t_*.js, areas.js, relief.png): Die Kacheln werden von app.js nachgeladen und stehen nicht im HTML.
+    Ohne Kennung zeigten wiederkehrende Besucher alte Kacheln aus dem Zwischenspeicher. Ergebnis: site/data/tv.js"""
+    h = hashlib.md5()
+    d = os.path.join(SITE, "data")
+    for fn in sorted(os.listdir(d)):
+        if re.match(r"t_\d+_\d+\.js$", fn) or fn == "areas.js":
+            h.update(fn.encode()); h.update(open(os.path.join(d, fn), "rb").read())
+    rp = os.path.join(SITE, "img", "relief.png")
+    if os.path.exists(rp):
+        h.update(open(rp, "rb").read())
+    txt = 'window.AL_TV="%s";\n' % h.hexdigest()[:8]
+    p = os.path.join(d, "tv.js")
+    if not os.path.exists(p) or open(p, encoding="utf-8").read() != txt:
+        open(p, "w", encoding="utf-8").write(txt)
+        return ["data/tv.js"]
+    return []
+
+
 def main():
-    changed = []
+    changed = kachelkennung()
 
     def sub(m):
         attr, path = m.group(1), m.group(2)

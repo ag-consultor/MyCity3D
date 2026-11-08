@@ -56,12 +56,30 @@
       "https://v6.vbb.transport.rest"
     ],
     "live_aus": false,
-    "betreiber_kurz": "VBB"
+    "betreiber_kurz": "VBB",
+    "betreiber_kuerzel": {
+      "_hinweis": "Optional: Kurzname je Verkehrsunternehmen (Teilstring des Namens im Feed) fuer die Fahrtenliste",
+      "Verkehrsgesellschaft Teltow-Fläming": "VGTF",
+      "ODEG Ostdeutsche Eisenbahn": "ODEG"
+    }
   },
   "veroeffentlichung": {
     "impressum_url": "",
     "datenschutz_url": "",
     "winscp_sitzung": "meine-karte",
     "zielordner": "/mein-ordner"
+  },
+  "bausteine": {
+    "_hinweis": "Optionale Bausteine. baustellen und gelaende gibt es nur fuer Brandenburg (Dienste des Landes), fuer andere Laender auf false lassen. muellabfuhr: Einbettung der Abfuhrabfrage des oertlichen Entsorgers (Adresse des Formulars, das er selbst auf seiner Seite einbettbar anbietet); null = keine Muellabfuhr. Das Beispiel gilt fuer Suedbrandenburg (SBAZV). Fremde Formulare setzen oft ein Cookie: in der Datenschutzerklaerung nennen. solar_kwh_je_kwp: Jahresertrag je kWp bei bester Ausrichtung fuer die Solar-Schaetzung (Mitteldeutschland etwa 980).",
+    "baustellen": true,
+    "gelaende": true,
+    "muellabfuhr": {
+      "name": "Südbrandenburgischer Abfallzweckverband (SBAZV)",
+      "url": "https://fahrzeuge.sbazv.de/WasteManagementSuedbrandenburg/WasteManagementServlet?SubmitAction=wasteDisposalServices&InFrameMode=TRUE",
+      "seite": "https://www.sbazv.de/entsorgungstermine/",
+      "anleitung": "Ort oder Ortsteil wählen, dann Straße und Hausnummer.",
+      "hinweis": "Der SBAZV setzt dabei ein Sitzungs-Cookie."
+    },
+    "solar_kwh_je_kwp": 980
   }
 }

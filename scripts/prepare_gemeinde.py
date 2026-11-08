@@ -12,7 +12,7 @@ import json, math, os, random, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from geo import CELL, GEMEINDE_SCHLUESSEL, LAT0, LON0, NB_BBOX, NB_CENTER, NB_NAME, in_nb, pip, simplify, stitch, utm33_to_latlon, xz  # noqa: E402
+from geo import CELL, GEMEINDE_SCHLUESSEL, LAT0, LON0, NB_BBOX, NB_CENTER, NB_NAME, ORT, in_nb, pip, simplify, stitch, utm33_to_latlon, xz  # noqa: E402
 from geom3d import triangulate  # noqa: E402  (Ear-Clipping fuer 3D-Polygone)
 
 ROOT = os.path.dirname(HERE)
@@ -302,7 +302,7 @@ def parse_osm():
     d = os.path.join(RAW, "osm")
     seen = set()
     use_live = os.path.exists(LIVE)
-    R = {"roads": [], "rails": [], "waters": [], "areas": [], "pois": [], "stops": [], "trees": []}
+    R = {"roads": [], "rails": [], "gleise": [], "waters": [], "areas": [], "pois": [], "stops": [], "trees": []}
     for fn in sorted(os.listdir(d)):
         for e in jload(os.path.join(d, fn))["elements"]:
             key = (e["type"], e["id"])
@@ -322,6 +322,8 @@ def parse_osm():
                     R["roads"].append((t["highway"], pts))
                 elif t.get("railway") in ("rail", "light_rail", "narrow_gauge", "tram"):
                     R["rails"].append(pts)
+                    if t.get("service") not in ("yard", "siding", "spur"):
+                        R["gleise"].append(pts)  # Streckengleise fuer die fahrenden Zuege (ohne Abstell- und Nebengleise)
                 elif t.get("waterway") in ("river", "stream", "canal", "ditch"):
                     R["waters"].append((t["waterway"], pts))
                 elif len(pts) > 3 and geom[0] == geom[-1]:
@@ -352,7 +354,7 @@ def parse_osm():
         if s["k"] == "rail":
             r = rail.setdefault(s["n"], [])
             r.append(s)
-        elif not nb or s["n"].lower() in ("bahnhof", "busbahnhof", "jüterbog, bahnhof", "jüterbog, busbahnhof"):
+        elif not nb or s["n"].lower().replace(NB_NAME.lower() + ", ", "") in ("bahnhof", "busbahnhof"):
             d = {"n": s["n"], "k": "bus", "x": round(s["x"], 1), "z": round(s["z"], 1), "o": ot_of(s["x"], s["z"])}
             if nb:
                 d["nb"] = 1
@@ -507,6 +509,8 @@ def main():
             if k != "water" and area_of(o) < 300:
                 continue
             areas.append([k, flat(simplify(o, 3.0)), [flat(simplify(h, 3.0)) for h in holes]])
+    with open(os.path.join(OUT, "gleise.js"), "w", encoding="utf-8") as f:
+        f.write("window.AL_GLEISE=%s;\n" % dump([flat(simplify(g, 1.0), 1) for g in R["gleise"] if len(g) >= 2]))
     with open(os.path.join(OUT, "areas.js"), "w", encoding="utf-8") as f:
         f.write("window.AL_AREAS=%s;\n" % dump(areas))
 
@@ -527,24 +531,7 @@ def main():
             d["info"] = info["orte"][o["n"]]
         ortsteile.append(d)
 
-    # Korrekturen von Betreibern (data/ergaenzung/poi_korrekturen.json): Name, solange OpenStreetMap noch den alten Stand hat
-    kp = os.path.join(ROOT, "data", "ergaenzung", "poi_korrekturen.json")
-    n_korr = 0
-    if os.path.exists(kp):
-        for k in jload(kp).get("korrekturen", []):
-            for p in R["pois"]:
-                if p["osm"] == k["osm"]:
-                    if k.get("name"):
-                        p["n"] = k["name"]
-                    if k.get("web"):
-                        p["web"] = k["web"]
-                    for src in ("tel", "mail", "wt", "wq", "wg"):  # Angaben von der eigenen Webseite des Betreibers
-                        if k.get(src):
-                            p[src] = k[src]
-                    p["kq"] = k.get("quelle")
-                    n_korr += 1
-        print("Korrekturen von Betreibern angewendet: %d" % n_korr)
-
+    # Reihenfolge: erst die Webseiten der Orte, dann die Korrekturen von Betreibern. Eine Korrektur gewinnt immer (sonst ueberschriebe der Webseiten-Abgleich sie wieder).
     # Angaben von den Webseiten der Orte (scripts/fetch_orte_web.py): nur Tatsachen, mit Quelle und Lesedatum. OSM-Zeiten haben Vorrang.
     ow_path = os.path.join(ROOT, "data", "ergaenzung", "orte_web.json")
     n_web = 0
@@ -563,6 +550,24 @@ def main():
                 p["oh"], p["ohw"] = w["oh_osm"], 1
         print("Webseiten-Angaben der Orte uebernommen: %d" % n_web)
 
+    # Korrekturen von Betreibern (data/ergaenzung/poi_korrekturen.json): Name, solange OpenStreetMap noch den alten Stand hat
+    kp = os.path.join(ROOT, "data", "ergaenzung", "poi_korrekturen.json")
+    n_korr = 0
+    if os.path.exists(kp):
+        for k in jload(kp).get("korrekturen", []):
+            for p in R["pois"]:
+                if p["osm"] == k["osm"]:
+                    if k.get("name"):
+                        p["n"] = k["name"]
+                    if k.get("web"):
+                        p["web"] = k["web"]
+                    for src in ("tel", "mail", "wt", "wq", "wg"):  # Angaben von der eigenen Webseite des Betreibers
+                        if k.get(src):
+                            p[src] = k[src]
+                    p["kq"] = k.get("quelle")
+                    n_korr += 1
+        print("Korrekturen von Betreibern angewendet: %d" % n_korr)
+
     meta = {
         "origin": {"lat": LAT0, "lon": LON0}, "cell": CELL, "x0": X0, "z0": Z0, "nx": NX, "nz": NZ,
         "cells": [[i, j, len(bycell.get((i, j), []))] for i, j in sorted(KEPT)],
@@ -579,8 +584,18 @@ def main():
     with open(os.path.join(OUT, "meta.js"), "w", encoding="utf-8") as f:
         f.write("window.AL_TILES={};window.AL_META=%s;\n" % dump(meta))
     print("Ortsteile:", ", ".join(o["n"] for o in OT))
-    for fn in ("meta.js", "addr.js", "areas.js"):
+    for fn in ("meta.js", "addr.js", "areas.js", "gleise.js"):
         print(fn, round(os.path.getsize(os.path.join(OUT, fn)) / 1e6, 2), "MB")
+    # Dachfarben aus dem Luftbild in die neu geschriebenen Kacheln eintragen (sonst gehen sie beim Neubau verloren)
+    import prepare_dach
+    prepare_dach.run(verbose=False)
+    # Hoehen und Relief aus dem DGM (scripts/fetch_dgm.py), nur wenn ort.json bausteine.gelaende einschaltet und das DGM geladen ist
+    if (ORT.get("bausteine") or {}).get("gelaende"):
+        try:
+            import prepare_gelaende
+            prepare_gelaende.run()
+        except ImportError as e:
+            print("Gelaende uebersprungen (%s): pip install numpy pillow" % e)
 
 
 if __name__ == "__main__":

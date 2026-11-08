@@ -46,6 +46,14 @@ if ORT["land"].get("kennung") != "BB" or not str(g["gemeindeschluessel"]).starts
 nb = ORT.get("nachbarort")
 if nb:
     bbox("nachbarort.bbox_sued_west_nord_ost", nb["bbox_sued_west_nord_ost"])
+bs = ORT.get("bausteine") or {}
+if (bs.get("baustellen") or bs.get("gelaende")) and (ORT["land"].get("kennung") != "BB"):
+    fehler.append("bausteine.baustellen und bausteine.gelaende nutzen Dienste des Landes Brandenburg: fuer andere Laender auf false setzen")
+m = bs.get("muellabfuhr")
+if m and not str(m.get("url", "")).startswith("https://"):
+    fehler.append("bausteine.muellabfuhr.url muss eine https-Adresse sein (oder muellabfuhr auf null setzen)")
+if m and not m.get("name"):
+    warn.append("bausteine.muellabfuhr.name fehlt: der Entsorger wird in den Quellen und im Hinweisfenster genannt")
 v = ORT.get("veroeffentlichung", {})
 for k in ("impressum_url", "datenschutz_url"):
     if not v.get(k):

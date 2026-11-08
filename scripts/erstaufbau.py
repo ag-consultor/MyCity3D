@@ -12,10 +12,14 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from geo import ORT  # noqa: E402
+
 sys.stdout.reconfigure(encoding="utf-8")
 
 SCHRITTE = [
     ("Gemeindegrenze, Kacheln, Adressen, OSM, 3D-Gebaeude, Luftbild", ["fetch.py", "boundary", "cells", "addr", "osm", "lod2", "dop"]),
+    ("Gelaende (DGM) holen, nur Brandenburg: ort.json bausteine.gelaende", ["fetch_dgm.py"]),
     ("Bodenrichtwerte holen (BORIS)", ["fetch_boris.py"]),
     ("Wochenlauf: Orte, Fahrplan, Seitendaten, Seiten bauen", ["update_weekly.py", "--no-state"]),
     ("Bodenrichtwerte aufbereiten", ["prepare_brw.py"]),
@@ -26,6 +30,8 @@ SCHRITTE = [
 
 
 def main():
+    if not (ORT.get("bausteine") or {}).get("gelaende"):
+        SCHRITTE[:] = [x for x in SCHRITTE if x[1][0] != "fetch_dgm.py"]
     ab = 1
     if "--ab" in sys.argv:
         ab = int(sys.argv[sys.argv.index("--ab") + 1])
