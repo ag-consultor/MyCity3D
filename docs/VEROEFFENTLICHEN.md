@@ -24,15 +24,15 @@ Empfohlen ist **B**. Das mitgelieferte `scripts/veroeffentlichen.bat` lädt per 
 
 ## Impressum und Datenschutz (Pflicht für Betreiber)
 
-Die Vorlage bringt keine Texte mit. Wer die Seite betreibt, braucht in Deutschland ein Impressum und eine Datenschutzerklärung. Die Adressen kommen in `ort.json` unter `veroeffentlichung.impressum_url` und `datenschutz_url` (vollständige https-Adressen, etwa auf der eigenen Homepage). Die Fußzeile zeigt die Links dann an. Die Datenschutzerklärung muss die Abrufe aus dem Browser nennen, die erst nach Klick des Besuchers stattfinden: `api.brightsky.dev`, `air-quality-api.open-meteo.com`, `isk.geobasis-bb.de` und die in `fahrplan.live_hosts` eingetragenen Dienste. Die Rechtsprüfung liegt bei dir.
+Die Vorlage bringt keine Texte mit. Wer die Seite betreibt, braucht in Deutschland ein Impressum und eine Datenschutzerklärung. Die Adressen kommen in `ort.json` unter `veroeffentlichung.impressum_url` und `datenschutz_url` (vollständige https-Adressen, etwa auf der eigenen Homepage). Die Fußzeile zeigt die Links dann an. Die Datenschutzerklärung muss die Abrufe aus dem Browser nennen, die erst nach Klick des Besuchers stattfinden (Schalter „Live-Daten laden“ und Einzelschalter): `api.brightsky.dev`, `air-quality-api.open-meteo.com`, `isk.geobasis-bb.de` (nur bei `bausteine.baustellen`), die in `fahrplan.live_hosts` eingetragenen Dienste und, falls eingetragen, die eingebettete Müllabfuhr-Abfrage (sie setzt oft ein Cookie). Die Seiten gehen mit einer Inhaltsrichtlinie (CSP als `meta`-Tag) hinaus, die `baue_seiten.py` aus `ort.json` erzeugt; ein neuer Dienst muss dort eingetragen werden, sonst blockiert ihn der Browser. Die Rechtsprüfung liegt bei dir.
 
 ## Wochenlauf
 
 `scripts/wochenlauf.bat` (oder `python scripts/update_weekly.py`):
 
 1. Orte und Haltestellen aus OpenStreetMap neu holen.
-2. Fahrplan-Feed laden und auf das Gebiet filtern.
-3. Seitendaten und Seiten neu bauen.
+2. Fahrplan-Feed laden, auf das Gebiet filtern und die Fahrten für die fahrenden Fahrzeuge ausziehen (`prepare_fahrten.py`).
+3. Seitendaten, Dachfarben und (bei `bausteine.gelaende`) Gelände neu bauen, Seiten erzeugen.
 4. Mit dem letzten Stand vergleichen und die Neuigkeiten schreiben.
 
 **Achtung:** Jeder Fahrplan-Feed hat ein Ende. Ohne Wochenlauf zeigt die Seite danach „keine Daten“, und `pruefe_veroeffentlichung.py` bricht das Veröffentlichen ab.
@@ -46,6 +46,10 @@ schtasks /Create /SC WEEKLY /D MON /ST 04:30 /TN "MyCity3D Wochenlauf" /TR "\"C:
 ```
 
 Automatisches Hochladen nach dem Wochenlauf: erst wenn der erste Upload von Hand geklappt hat, eine leere Datei `data/state/auto-veroeffentlichen.on` anlegen.
+
+## Zwischenspeicher
+
+`scripts/versionieren.py` hängt an Skripte, Stilblätter und Kacheln eine Kennung aus dem Dateiinhalt (`?v=…`; die Kennung aller Kacheln, der Flächen und des Reliefs steht in `site/data/tv.js`). So sehen Wiederkehrer nach einem Neubau keine alten Kacheln aus dem Zwischenspeicher. Das Skript läuft im Wochenlauf und vor dem Veröffentlichen.
 
 ## Vorschaubild
 

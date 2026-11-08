@@ -4,3 +4,5 @@ Copyright 2026 Stefan Werner
 Dieses Produkt enthaelt Software von Dritten unter eigener Lizenz:
 - three.js (MIT-Lizenz), site/js/three.LICENSE.txt
 - Sora und JetBrains Mono (SIL Open Font License 1.1), site/fonts/
+
+Die Daten, die diese Vorlage verarbeitet, haben eigene Lizenzen (OpenStreetMap ODbL, LGB und Landesbetrieb Strassenwesen dl-de/by-2-0, Fahrplan des Verkehrsverbunds, Open-Meteo CC BY 4.0, Deutscher Wetterdienst ueber Bright Sky). Die Hinweise stehen auf der erzeugten Seite im Dialog "Quellen" und in docs/DATENQUELLEN.md und duerfen nicht entfernt werden.

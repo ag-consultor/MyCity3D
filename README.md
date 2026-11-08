@@ -1,11 +1,26 @@
 # MyCity3D
 
-3D-Ortskarte aus offenen Daten für eine Gemeinde: jedes Gebäude als Volumen auf dem Luftbild, dazu Adresssuche, Orte und Betriebe, Fahrpläne von Bus und Bahn mit Live-Abfahrten, Wetter, Luftqualität, Baustellen, Bodenrichtwerte, Sonnenstand und Schatten.
+3D-Ortskarte aus offenen Daten für eine Gemeinde: jedes Gebäude als Volumen auf dem Luftbild, dazu Adresssuche, Orte und Betriebe, Fahrpläne von Bus und Bahn mit Live-Abfahrten und fahrenden Zügen und Bussen, Wetter mit Wolken, Luftqualität, Baustellen, Bodenrichtwerte, Sonnenstand und Schatten, Dachfarbe, Solar-Eignung und Gelände.
 
-Die Seite ist **rein statisch** (HTML, JavaScript, Datendateien). Sie braucht keinen Server, keine Datenbank und kein PHP. Alles, was von Dritten live kommt (Wetter, Luft, Baustellen, Abfahrten), wird erst nach einem Klick des Besuchers aus dessen Browser abgerufen.
+Die Seite ist **rein statisch** (HTML, JavaScript, Datendateien). Sie braucht keinen Server, keine Datenbank und kein PHP. Alles, was von Dritten live kommt (Wetter, Luft, Baustellen, Abfahrten), wird erst nach einem Klick des Besuchers aus dessen Browser abgerufen: ein Schalter „Live-Daten laden“ fragt für alle Dienste gemeinsam, die Einwilligung bleibt widerrufbar.
 
 Gebaut als Vorlage: Ort in **einer** Datei (`ort.json`) eintragen, Skript starten, fertig.
 Vorschau am Beispielort Niedergörsdorf: https://niedergoersdorf-in-3d.digital-audit.info/
+
+## Funktionen
+
+| Bereich | Was die Karte kann |
+|---|---|
+| Karte | 3D-Gebäude (LoD2) auf dem Luftbild, Sonnenstand mit Schatten, Design „Nachtflug“ (dunkel, Glas-Panels), Handy-Layout |
+| Einfärben | Nutzung, Höhe, Bodenrichtwert, **Dachfarbe** (aus dem Luftbild), **Solar-Eignung** (Schätzung aus den Dachflächen); Annahmen im Dialog „Quellen“ |
+| Gelände | Höhenangaben je Gebäude und Ort, abschaltbares Geländerelief (nur Brandenburg, `bausteine.gelaende`) |
+| Orte und Termine | Orte nach Gruppen per **Mehrfachauswahl**, Termine nach Kategorien per Mehrfachauswahl; Reiter „Ort \| Termine“ an der Ortskarte, „Veranstaltung \| Ort“ an der Terminkarte |
+| Bus und Bahn | Haltestellen mit Reitern **Live** und **Plan** (nur Abfahrten ab jetzt, 24 Stunden); **Fahrzeuge** als Miniaturmodelle: Züge folgen dem Gleisnetz, ohne Live-Daten nach dem Sollfahrplan, mit Live-Daten an ihrer Position; Verfolgen mit Spur |
+| Wetter | Wetter und amtliche Warnungen, **Wolkenebene** als Shader nach Bedeckungsgrad und Windrichtung des DWD |
+| Aktuelle Lage | Luftqualität, Baustellen (nur Brandenburg), optional eingebettete Müllabfuhr-Abfrage |
+| Teilen | Link zur Ansicht (`#k=…&l=…`: Kamera, Ebenen, Einfärbung, gewählter Ort) |
+| Datenschutz | Inhaltsrichtlinie (CSP) ohne Inline-Skripte, aus `ort.json` erzeugt; keine Verbindung zu Dritten ohne Klick |
+| Pflege | Korrekturen von Betreibern ohne Eingriff in OpenStreetMap (`docs/KORREKTUREN.md`), Kachelkennung gegen veraltete Zwischenspeicher (`data/tv.js`, `versionieren.py`) |
 
 ## Wichtig vorab: nur Brandenburg ist fertig verdrahtet
 
@@ -13,14 +28,16 @@ Vorschau am Beispielort Niedergörsdorf: https://niedergoersdorf-in-3d.digital-a
 |---|---|---|
 | Gebäude (3D, LoD2), Adressen, Luftbild | Landesvermessung und Geobasisinformation Brandenburg (LGB), dl-de/by-2-0 | **Brandenburg** |
 | Bodenrichtwerte | BORIS Brandenburg | **Brandenburg** |
-| Baustellen und Sperrungen | Landesbetrieb Straßenwesen Brandenburg | **Brandenburg** |
+| Gelände (DGM), Relief | LGB Brandenburg, dl-de/by-2-0 | **Brandenburg**, abschaltbar |
+| Baustellen und Sperrungen | Landesbetrieb Straßenwesen Brandenburg | **Brandenburg**, abschaltbar |
+| Müllabfuhr | Abfuhrabfrage des örtlichen Entsorgers (eingebettet) | frei einstellbar, Beispiel Südbrandenburg |
 | Fahrplan (Sollfahrplan) | VBB-GTFS, CC BY 4.0 (austauschbar, `ort.json`) | VBB-Gebiet, sonst anderen Feed eintragen |
 | Live-Abfahrten | freie `transport.rest`-Instanzen (austauschbar) | Netz der gewählten Instanz |
 | Straßen, Orte, Haltestellen, Grenzen | OpenStreetMap, ODbL | überall |
 | Wetter, Warnungen | Deutscher Wetterdienst über Bright Sky | Deutschland |
 | Luftqualität | Copernicus CAMS über Open-Meteo, CC BY 4.0 | Europa |
 
-Für andere Bundesländer müssen die Geodienste in `scripts/fetch.py` ausgetauscht werden: `docs/ANDERES-BUNDESLAND.md`.
+Für andere Bundesländer müssen die Geodienste in `scripts/fetch.py` ausgetauscht werden: `docs/ANDERES-BUNDESLAND.md`. Die Brandenburg-Bausteine (Baustellen, Gelände) stehen in `ort.json` unter `bausteine` und gehören dort auf `false`; die Müllabfuhr-Einbettung wird eingetragen oder auf `null` gesetzt. Quellen, Lizenzen und verworfene Daten: `docs/DATENQUELLEN.md`.
 
 ## Schnellstart
 
@@ -46,7 +63,7 @@ So findest du die Angaben für `ort.json`:
 ## Was die Vorlage nicht enthält
 
 - **Impressum und Datenschutzerklärung.** Wer die Seite betreibt, muss beides selbst stellen und in `ort.json` unter `veroeffentlichung` verlinken. Die Vorlage liefert keine mit, und `pruefe_veroeffentlichung.py` warnt, solange die Felder leer sind.
-- **Ortsspezifische Inhalte**, etwa Behörden, Ärzte, Müllabfuhr und Veranstaltungsquellen. Eigene Termine gehören in `site/events.js`.
+- **Ortsspezifische Inhalte**, etwa Behörden, Ärzte und Veranstaltungsquellen. Eigene Termine gehören in `site/events.js`, Korrekturen einzelner Orte in `data/ergaenzung/poi_korrekturen.json` (`docs/KORREKTUREN.md`; die Datei selbst bringt die Vorlage nicht mit, nur ein erfundenes Beispiel).
 - **Fertige Daten.** Erzeugte Seitendaten und Luftbilder (rund 60 MB) liegen nicht im Repository, sie entstehen beim Bauen.
 
 ## Aufbau
@@ -54,7 +71,7 @@ So findest du die Angaben für `ort.json`:
 ```
 ort.json              ein Ort = diese Datei
 vorlage/              index.html und karte.html mit Platzhaltern
-scripts/              Abruf, Aufbereitung, Wochenlauf, Veröffentlichen
+scripts/              Abruf, Aufbereitung (Gebäude, Fahrplan, Fahrten, Dachfarbe, Gelände), Wochenlauf, Veröffentlichen
 site/                 die fertige statische Seite (Ausgabe von baue_seiten.py)
 data/raw, data/state  Rohdaten und Zustand (nicht versioniert)
 beispiele/            Beispielkonfiguration
@@ -65,6 +82,6 @@ docs/                 Anleitungen
 
 Der Code steht unter der **Apache-Lizenz 2.0** (`LICENSE`): freie Nutzung, Veränderung und Weitergabe, auch gewerblich. Wer weitergibt, legt den Lizenztext und die Datei `NOTICE` bei und kennzeichnet geänderte Dateien. Die Lizenz enthält eine Patentklausel.
 
-Die **Daten** haben eigene Lizenzen, deren Hinweise auf der Seite stehen und nicht entfernt werden dürfen: LGB und Landesbetrieb Straßenwesen (dl-de/by-2-0, Daten geändert), OpenStreetMap-Mitwirkende (ODbL), Fahrplan des Verkehrsverbunds (hier CC BY 4.0), Open-Meteo (CC BY 4.0), DWD (GeoNutzV). Mitgeliefert und unter eigener Lizenz: three.js (MIT), Sora und JetBrains Mono (SIL OFL 1.1).
+Die **Daten** haben eigene Lizenzen, deren Hinweise auf der Seite stehen und nicht entfernt werden dürfen: LGB und Landesbetrieb Straßenwesen (dl-de/by-2-0, Daten geändert; gilt auch für Luftbild, Gebäude, Gelände und die daraus gerechneten Dachfarben), OpenStreetMap-Mitwirkende (ODbL), Fahrplan des Verkehrsverbunds (hier VBB, CC BY 4.0), Open-Meteo (CC BY 4.0), Deutscher Wetterdienst über Bright Sky (GeoNutzV). Einzelheiten: `docs/DATENQUELLEN.md`. Mitgeliefert und unter eigener Lizenz: three.js (MIT), Sora und JetBrains Mono (SIL OFL 1.1).
 
 Die Live-Schnittstellen von `transport.rest` sind freie, inoffizielle Dienste ohne Zusage. Bitte nicht automatisiert abfragen, die Seite ruft sie nur auf Klick des Besuchers aus dem Browser ab.
