@@ -57,6 +57,17 @@ if bs.get("baustellen") and not LAND.get("baustellen"):
     fehler.append("bausteine.baustellen: fuer %s ist keine Baustellenquelle verdrahtet (scripts/laender.py), auf false setzen" % LAND["name"])
 if bs.get("gelaende") and ORT["land"].get("kennung") != "BB":
     fehler.append("bausteine.gelaende nutzt das DGM des Landes Brandenburg: fuer andere Laender auf false setzen")
+if bs.get("waldbrand") and ORT["land"].get("kennung") != "BB":
+    fehler.append("bausteine.waldbrand liest die Seite des Landes Brandenburg: fuer andere Laender auf null setzen")
+w = bs.get("webcam")
+if w and not str(w.get("url", "")).startswith("https://"):
+    fehler.append("bausteine.webcam.url muss eine https-Adresse sein (oder webcam auf null setzen)")
+for st in (bs.get("klima") or {}).get("stationen", []):
+    if not (isinstance(st, list) and len(st) == 4 and re.fullmatch(r"\d{5}", str(st[0]))):
+        fehler.append("bausteine.klima.stationen: Eintrag %r muss [\"12345\", \"Name\", km, \"Lage\"] mit fuenfstelliger DWD-Stationsnummer sein" % (st,))
+mp = bs.get("meldeportal")
+if mp and not str(mp.get("url", "")).startswith("https://"):
+    fehler.append("bausteine.meldeportal.url muss eine https-Adresse sein (oder meldeportal auf null setzen)")
 m = bs.get("muellabfuhr")
 if m and not str(m.get("url", "")).startswith("https://"):
     fehler.append("bausteine.muellabfuhr.url muss eine https-Adresse sein (oder muellabfuhr auf null setzen)")

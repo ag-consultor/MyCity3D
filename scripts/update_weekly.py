@@ -150,6 +150,11 @@ def main():
     # Bayern: Baustellen aus der Mobilithek, nur wenn ein Zugang eingetragen ist (scripts/fetch_baustellen_by.py)
     if LAND.get("baustellen") == "mobilithek" and (os.environ.get("MOBILITHEK_SUBSCRIPTION_ID") or os.path.exists(os.path.join(ROOT, "data", "state", "mobilithek.json"))):
         run("fetch_baustellen_by.py")
+    run("fetch_notfall.py", must=False)  # Loeschwasser, Sirenen, Anlagen, Freizeit aus OSM (bausteine.notfall; Overpass kann haengen: alter Stand bleibt)
+    run("prepare_landwirt.py", must=False)  # Bodenfeuchte der naechsten DWD-Station (bausteine.landwirtschaft; taeglich: scripts/taeglich.bat)
+    run("fetch_waldbrand.py", must=False)  # Waldbrandstufe (bausteine.waldbrand, nur Brandenburg; taeglich: scripts/taeglich.bat)
+    run("fetch_touren.py", must=False)  # Rad-, Wander- und Skate-Routen aus OSM (bausteine.touren)
+    run("fetch_klima.py", must=False)  # Klima-Monatswerte der DWD-Stationen (bausteine.klima; aendern sich monatlich)
 
     new = snapshot()
     old = json.load(open(STATE, encoding="utf-8")) if os.path.exists(STATE) and "--no-state" not in a else None

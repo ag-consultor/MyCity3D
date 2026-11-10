@@ -26,6 +26,12 @@ for f in ("index.html", "karte.html", "wetter.js", "wetter.css", "wetter-karte.j
           "img/overview.jpg"):
     if not os.path.exists(os.path.join(SITE, f)):
         fehler.append("fehlt: site/" + f)
+# Dateien der Bausteine, die ort.json einschaltet (bausteine.*)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from baue_seiten import optionale_dateien  # noqa: E402
+for f in optionale_dateien():
+    if not os.path.exists(os.path.join(SITE, f)):
+        fehler.append("fehlt (Baustein aus ort.json): site/" + f)
 meta = os.path.join(SITE, "data", "meta.js")
 if os.path.exists(meta):
     s = open(meta, encoding="utf-8").read()
