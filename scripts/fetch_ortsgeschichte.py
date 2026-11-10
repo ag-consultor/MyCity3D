@@ -46,9 +46,9 @@ def kuerze(t):
 
 
 def artikel(titel):
-    d = api(action="query", prop="extracts|info|revisions", titles=titel, explaintext="1", exsectionformat="wiki", inprop="url", rvprop="timestamp|ids", redirects="1")
+    d = api(action="query", prop="extracts|info|revisions|pageprops", ppprop="disambiguation", titles=titel, explaintext="1", exsectionformat="wiki", inprop="url", rvprop="timestamp|ids", redirects="1")
     pg = (d.get("query", {}).get("pages") or [{}])[0]
-    if pg.get("missing") or not pg.get("extract"):
+    if pg.get("missing") or not pg.get("extract") or "disambiguation" in (pg.get("pageprops") or {}):  # Begriffsklaerung zaehlt nicht
         return None
     rev = (pg.get("revisions") or [{}])[0]
     voll = pg["extract"]
@@ -59,6 +59,17 @@ def artikel(titel):
         t = re.sub(r"\n===[^\n]*===\s*\n", "\n", m.group(2)).strip()
         ge = t if len(t) > 80 else None
     return {"titel": pg["title"], "text": intro, "geschichte": ge, "url": pg.get("fullurl"), "rev": rev.get("revid"), "zeit": (rev.get("timestamp") or "")[:10]}
+
+
+def nennt(t):
+    """Gemeindename als ganzes Wort (Cham, nicht Chamtal oder Chammuenster)."""
+    return re.search(r"(?<![\w-])%s(?![\w])" % re.escape(NAME), t) is not None
+
+
+def titel_passt(name, titel):
+    """Titel ist genau der Ortsteil, oder der Ortsteil mit Klammerzusatz, der die Gemeinde nennt."""
+    m = re.fullmatch(re.escape(name) + r"(?: \((.+)\))?", titel)
+    return bool(m) and (m.group(1) is None or nennt(m.group(1)))
 
 
 def suche(name):
@@ -88,7 +99,7 @@ def main():
             if not a:
                 continue
             versucht.append(a["titel"])
-            if NAME in a["text"] or NAME in a["titel"]:
+            if nennt(a["text"]) or nennt(a["titel"]):
                 gefunden = a
                 break
             time.sleep(1.0)
@@ -100,7 +111,7 @@ def main():
                 time.sleep(1.0)
                 if a:
                     versucht.append(a["titel"])
-                    if NAME in a["text"]:
+                    if titel_passt(name, a["titel"]) and nennt(a["text"]):  # Suchtreffer nur als "Ortsteil" oder "Ortsteil (Gemeinde)", sonst Personen, Listen, Strassen
                         gefunden = a
                         break
         if gefunden:

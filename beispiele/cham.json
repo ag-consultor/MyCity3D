@@ -42,13 +42,51 @@
     "impressum_url": "",
     "datenschutz_url": "",
     "winscp_sitzung": "",
-    "zielordner": ""
+    "zielordner": "",
+    "urheber": {
+      "_hinweis": "Optional: Urheberzeile in den Fusszeilen. Leer lassen = keine Zeile.",
+      "name": "",
+      "link_text": "",
+      "link_url": ""
+    }
   },
   "bausteine": {
-    "_hinweis": "Optionale Bausteine. baustellen und gelaende gibt es nur fuer Brandenburg (Dienste des Landes), fuer andere Laender auf false lassen. muellabfuhr: Einbettung der Abfuhrabfrage des oertlichen Entsorgers (Adresse des Formulars, das er selbst auf seiner Seite einbettbar anbietet); null = keine Muellabfuhr. Das Beispiel gilt fuer Suedbrandenburg (SBAZV). Fremde Formulare setzen oft ein Cookie: in der Datenschutzerklaerung nennen. solar_kwh_je_kwp: Jahresertrag je kWp bei bester Ausrichtung fuer die Solar-Schaetzung (Mitteldeutschland etwa 980).",
+    "_hinweis": "Optionale Bausteine, jeder einzeln abschaltbar (false oder null). Nur fuer Brandenburg (Bayern: siehe docs/BAYERN.md): baustellen, gelaende, waldbrand (Seite des Landesministeriums), meldeportal im Beispiel (Maerker). Fuer ganz Deutschland: landwirtschaft (DWD, naechste Station), notfall (Loeschwasser, Sirenen, Anlagen, Freizeit, Strassenlampen aus OSM), klima (DWD-Stationen, Liste von Hand), ortsgeschichte (Wikipedia), touren (OSM; wikivoyage = Artikeltitel oder null), webcam (DWD-Bilderserver), drohnenhinweis (Verweis auf dipul). muellabfuhr: Einbettung der Abfuhrabfrage des oertlichen Entsorgers (Adresse des Formulars, das er selbst einbettbar anbietet); null = keine. Das Beispiel gilt fuer Suedbrandenburg (SBAZV). Fremde Formulare setzen oft ein Cookie: in der Datenschutzerklaerung nennen. solar_kwh_je_kwp: Jahresertrag je kWp bei bester Ausrichtung fuer die Solar-Schaetzung (Mitteldeutschland etwa 980). Jeder eingeschaltete Dienst im Browser steht auch im Hinweisfenster der Live-Daten und in der Inhaltsrichtlinie (scripts/baue_seiten.py). Quellen und Lizenzen: docs/DATENQUELLEN.md.",
     "baustellen": true,
     "gelaende": false,
     "muellabfuhr": null,
-    "solar_kwh_je_kwp": 1020
+    "solar_kwh_je_kwp": 1020,
+    "landwirtschaft": true,
+    "waldbrand": null,
+    "notfall": true,
+    "ortsgeschichte": true,
+    "touren": {
+      "wikivoyage": null
+    },
+    "klima": {
+      "stationen": [
+        [
+          "04559",
+          "Schorndorf-Knöbling",
+          5.1,
+          "5 km entfernt"
+        ],
+        [
+          "07370",
+          "Waldmünchen",
+          21.1,
+          "21 km entfernt"
+        ],
+        [
+          "04911",
+          "Straubing",
+          42.3,
+          "42 km entfernt"
+        ]
+      ]
+    },
+    "webcam": null,
+    "meldeportal": null,
+    "drohnenhinweis": true
   }
 }

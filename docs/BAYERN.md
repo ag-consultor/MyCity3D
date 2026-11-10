@@ -33,6 +33,16 @@ Das bayerische LoD2 unterscheidet grob. In Cham tragen 10.396 von 18.456 Gebäud
 
 Ergebnis für Cham am 08.11.2026: 10.308 Nebengebäude, 5.196 Wohnen, 1.497 Landwirtschaft, 623 Handel und Gewerbe, 328 Industrie. Das ist eine Schätzung. Einzelne Werkstätten im Dorf landen bei der Landwirtschaft, und eine Scheune in der Stadt wird zum Nebengebäude. Die Gebäudekarte nennt die Nutzung ohne Hinweis darauf *(noch offen)*.
 
+## Bausteine für ganz Deutschland
+
+Bodenfeuchte, Klima, Notfall-Ebenen, Touren, Ortsgeschichte und der Drohnenhinweis funktionieren auch in Bayern. Für Cham stehen die Klimastationen Schorndorf-Knöbling (5 km, Reihe bis 2024), Waldmünchen (21 km) und Straubing (42 km, volle Jahre seit 1942) in `beispiele/cham.json`. Waldbrandstufe und Meldeportal bleiben aus, die nächste Webcam des DWD steht am Hohenpeißenberg.
+
+Bei der Ortsgeschichte ist „Cham“ als Gemeindename kurz und steht in fast jedem Artikel aus dem Landkreis. `fetch_ortsgeschichte.py` übernimmt deshalb keine Begriffsklärungen, verlangt den Gemeindenamen als ganzes Wort und nimmt Suchtreffer nur, wenn der Titel genau der Ortsteil ist oder der Ortsteil mit einem Klammerzusatz, der die Gemeinde nennt. In Cham finden so 23 von 52 Gemeindeteilen einen Artikel. Ohne diese Regeln kamen auch Personen, Bundesstraßen und Listen dazu. Für Niedergörsdorf ändert sich nichts (23 von 23). Der Artikel zur Stadt heißt „Cham (Oberpfalz)“, „Cham“ ist eine Begriffsklärung. Deshalb gehört in `data/ergaenzung/ortsgeschichte_titel.json`:
+
+```json
+{"Cham (Gemeinde)": "Cham (Oberpfalz)", "Cham": "Cham (Oberpfalz)"}
+```
+
 ## Noch nicht angebunden
 
 Diese Bausteine fehlen für Bayern noch und sollen nachkommen. Die Karte blendet Schalter und Kacheln dazu aus, solange sie fehlen.
