@@ -18,7 +18,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 SITE = os.path.join(ROOT, "site")
 STATE = os.path.join(ROOT, "data", "state", "state.json")
 GTFS = os.path.join(ROOT, "data", "raw", "vbb", "gtfs.zip")
-from geo import ORT  # noqa: E402
+from geo import LAND, ORT, ROOT  # noqa: E402
 GTFS_URL = ORT["fahrplan"]["gtfs_url"]
 KEEP_DAYS = 28
 TYPE_DE = {"restaurant": "Restaurant", "cafe": "Café", "fast_food": "Imbiss", "fuel": "Tankstelle", "hairdresser": "Friseur",
@@ -46,7 +46,7 @@ def load_js(path, var):
 
 
 def download_gtfs():
-    log("VBB-Fahrplan laden:", GTFS_URL)
+    log("Fahrplan laden:", GTFS_URL)
     os.makedirs(os.path.dirname(GTFS), exist_ok=True)
     tmp = GTFS + ".part"
     req = urllib.request.Request(GTFS_URL, headers={"User-Agent": "GemeindeKarte-Prototyp/0.4"})
@@ -147,6 +147,9 @@ def main():
         run("prepare_fahrplan.py")
         run("prepare_fahrten.py", must=False)  # Fahrten fuer Fahrzeuge auf der Karte; faellt es aus, bleibt der alte Stand
     run("prepare_gemeinde.py")
+    # Bayern: Baustellen aus der Mobilithek, nur wenn ein Zugang eingetragen ist (scripts/fetch_baustellen_by.py)
+    if LAND.get("baustellen") == "mobilithek" and (os.environ.get("MOBILITHEK_SUBSCRIPTION_ID") or os.path.exists(os.path.join(ROOT, "data", "state", "mobilithek.json"))):
+        run("fetch_baustellen_by.py")
 
     new = snapshot()
     old = json.load(open(STATE, encoding="utf-8")) if os.path.exists(STATE) and "--no-state" not in a else None

@@ -9,6 +9,8 @@
   const ORT = window.ORT || {}, ORT_NAME = ORT.name || 'Ort', NB_NAME = ORT.nb || 'Nachbarort', ART = ORT.art || 'Gemeinde';
   const BETR = ORT.betreiberKurz || 'Fahrplan'; // Kurzname des Fahrplan-Betreibers (ort.json)
   const ORTSTEILE_SEITE = ORT.ortsteileSeite || ''; // optional: Seite mit Ortsporträts der Gemeinde (ort.json), leer = keine
+  const GEO = ORT.geobasis || { kurz: 'LGB Brandenburg', text: '© GeoBasis-DE/LGB, dl-de/by-2-0 (Daten geändert). Landesvermessung und Geobasisinformation Brandenburg', lizenz: 'dl-de/by-2-0', url: 'https://www.govdata.de/dl-de/by-2-0' }; // Quellenhinweis Geobasisdaten (scripts/laender.py)
+  const ADDR_OSM = !!ORT.adressenOsm; // Adressen teils aus OpenStreetMap (Laender ohne freie amtliche Adressen)
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -588,6 +590,46 @@
   });
   const landLine = () => { const l = BRW.land; return (l.acker ? 'Acker ' + fmtW(l.acker.w) + (l.acker.az ? ' (Ackerzahl ' + l.acker.az + ')' : '') : '') + (l.gruen ? ', Grünland ' + fmtW(l.gruen.w) + (l.gruen.gz ? ' (Grünlandzahl ' + l.gruen.gz + ')' : '') : '') + (l.forst ? ', Forst ' + fmtW(l.forst.w) : ''); };
   const BRW_NOTE = '<p class="note">Der Bodenrichtwert ist ein durchschnittlicher Lagewert je m² Grundstücksfläche für eine Zone, kein Verkehrswert eines einzelnen Grundstücks.</p>';
+  // Bodenrichtwert live auf Klick (z. B. Bayern): Abfrage beim amtlichen Dienst direkt aus dem Browser, erst nach Zustimmung.
+  // Nichts wird gespeichert oder mit der Seite ausgeliefert (scripts/laender.py, brw_live).
+  const BRW_LIVE = !BRW && ORT.brwLive ? ORT.brwLive : null;
+  let brwLiveOk = false; try { brwLiveOk = localStorage.getItem('alw-brw') === 'ja'; } catch (e) { /* ohne Speicher */ }
+  const brwLiveBox = () => (BRW_LIVE ? '<div class="live" id="brwLive"></div>' : '');
+  const kA = (v) => (v && v !== 'Keine Angabe' ? v : '');
+  async function brwLiveFill(x, z) {
+    const box = $('#brwLive'); if (!box || !BRW_LIVE) return;
+    if (!brwLiveOk) {
+      box.innerHTML = '<b>Bodenrichtwert</b><p class="note">Auf Wunsch fragt die Karte den Bodenrichtwert an dieser Stelle beim Dienst der Bayerischen Vermessungsverwaltung ab. Dafür verbindet sich Ihr Browser mit <b>' + esc(BRW_LIVE.host)
+        + '</b> und überträgt die Lage der Stelle und Ihre IP-Adresse. Ohne Zustimmung findet keine Verbindung statt. ' + (ORT.datenschutz ? '<a href="' + esc(ORT.datenschutz) + '" target="_blank" rel="noopener">Datenschutz</a>' : '') + '</p>'
+        + '<button class="wxbtn" id="brwLiveJa">Bodenrichtwert abfragen</button>';
+      $('#brwLiveJa').onclick = () => { brwLiveOk = true; try { localStorage.setItem('alw-brw', 'ja'); } catch (e) { /* egal */ } brwLiveFill(x, z); };
+      return;
+    }
+    box.innerHTML = '<b>Bodenrichtwert</b><p class="note">wird abgefragt …</p>';
+    const [lat, lon] = toLL(x, z), d = 0.0004;
+    const url = BRW_LIVE.url + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=' + BRW_LIVE.layer + '&QUERY_LAYERS=' + BRW_LIVE.layer
+      + '&SRS=EPSG:4326&BBOX=' + [lon - d, lat - d, lon + d, lat + d].map((v) => v.toFixed(6)).join(',') + '&WIDTH=101&HEIGHT=101&X=50&Y=50&INFO_FORMAT=application/json&FEATURE_COUNT=1';
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 12000);
+    try {
+      const r = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctl.signal });
+      if (!r.ok) throw new Error(r.status);
+      const f = ((await r.json()).features || [])[0], p = f ? f.properties : null;
+      if ($('#brwLive') !== box) return; // Karte inzwischen gewechselt
+      if (!p) { box.innerHTML = '<b>Bodenrichtwert</b><p class="note">Für diese Stelle liefert der Dienst keine Bodenrichtwertzone.</p>'; return; }
+      const w = p.showbrw === false ? '' : kA(String(p.bodenrichtwert || ''));
+      const erl = safeUrl(p.listeumrechnungstabellen) ? ' · <a href="' + esc(p.listeumrechnungstabellen) + '" target="_blank" rel="noopener">Erläuterungen</a>' : '';
+      box.innerHTML = '<b>Bodenrichtwert</b><dl>'
+        + '<dt>Wert</dt><dd>' + (w ? '<b>' + esc(w) + ' €/m²</b>' : 'vom Gutachterausschuss nicht zur Einsicht freigegeben') + '</dd>'
+        + (kA(p.nutzungsart) ? '<dt>Nutzung</dt><dd>' + esc(p.nutzungsart) + '</dd>' : '')
+        + (kA(p.entwicklungszustand) ? '<dt>Zustand</dt><dd>' + esc(p.entwicklungszustand) + '</dd>' : '')
+        + (kA(p.bodenrichtwertszonenname) ? '<dt>Zone</dt><dd>' + esc(p.bodenrichtwertszonenname) + '</dd>' : '')
+        + (kA(p.stichtag) ? '<dt>Stichtag</dt><dd>' + esc(p.stichtag) + '</dd>' : '') + '</dl>'
+        + '<p class="note">Durchschnittlicher Lagewert je m² für die Zone, kein Verkehrswert und keine amtliche Auskunft. Amtliche Auskünfte gibt der ' + esc(p.gutachterausschuss_name || 'Gutachterausschuss') + '.</p>'
+        + sourceLine(BRW_LIVE.kurz, BRW_LIVE.info).replace('</div>', erl + '</div>');
+    } catch (e) {
+      if ($('#brwLive') === box) box.innerHTML = '<b>Bodenrichtwert</b><p class="note">Der Dienst antwortet gerade nicht. Bitte später erneut versuchen.</p>';
+    } finally { clearTimeout(tm); }
+  }
   function brwRow(x, z) {
     const q = BRW ? brwAt(x, z) : null;
     if (!q) return '';
@@ -833,6 +875,7 @@
       const where = nearestAddr(gp.x, gp.z), q = BRW ? brwAt(gp.x, gp.z) : null;
       if (q) openCard('<h3>Gewählte Stelle</h3><p class="sub">' + (where ? 'bei ' + esc(where) : 'ohne Adresse in der Nähe') + '</p><dl>' + brwRow(gp.x, gp.z) + '</dl>'
         + (q.aussen ? '<p class="note">Land- und Forstwirtschaft, gemeindeweit: ' + esc(landLine()) + '.</p>' : '') + BRW_NOTE + sourceLine('BORIS Brandenburg (LGB), dl-de/by-2.0', 'https://www.govdata.de/dl-de/by-2-0'));
+      else if (BRW_LIVE) { openCard('<h3>Gewählte Stelle</h3><p class="sub">' + (where ? 'bei ' + esc(where) : 'ohne Adresse in der Nähe') + '</p>' + brwLiveBox()); brwLiveFill(gp.x, gp.z); }
       else closeCard();
       setSpot(gp, 'Gewählte Stelle' + (where ? ' (bei ' + where + ')' : ''));
     }
@@ -865,9 +908,10 @@
       + (addr.length > 1 ? '<dt>Weitere Adressen</dt><dd>' + addr.slice(1).join(', ') + '</dd>' : '')
       + (addr.length ? '' : '<dt>Adresse</dt><dd>keine amtliche Adresse zugeordnet</dd>')
       + '<dt>Höhe</dt><dd>' + (b.h ? b.h.toFixed(1) + ' m über Grund' : '–') + '</dd><dt>Gesamthöhe</dt><dd>' + b.t.toFixed(1) + ' m</dd>' + (b.hn != null ? '<dt>Gelände</dt><dd>' + nfH(b.hn) + ' m über NHN<span class="s">am Gebäude, aus dem Geländemodell (10 m)</span></dd>' : '') + solarRows(b) + brwRow(b.x, b.z) + '</dl>'
-      + (BRW ? BRW_NOTE : '') + '<button class="chip" id="toSun">☀ Besonnung anzeigen</button>'
-      + sourceLine('LGB Brandenburg: Gebäude LoD2 und Adressen (dl-de/by-2.0)', 'https://www.govdata.de/dl-de/by-2-0'));
+      + (BRW ? BRW_NOTE : '') + brwLiveBox() + '<button class="chip" id="toSun">☀ Besonnung anzeigen</button>'
+      + sourceLine(GEO.kurz + ': Gebäude LoD2 und Adressen (' + GEO.lizenz + ')', GEO.url));
     $('#toSun').onclick = () => openPanel('sun', true);
+    brwLiveFill(b.x, b.z);
   }
   // Reiter in Karten: Ort und seine Termine bleiben zusammen (Ortskarte: Ort | Termine, Terminkarte: Veranstaltung | Ort)
   function tabbed(head, panes, active) {
@@ -1329,7 +1373,7 @@
       }
     });
     FZ.list.forEach((v, id) => { if (v.sim && !want.has(id)) { fzRemove(v); FZ.list.delete(id); } });
-    if (!liveOk) { const ns = [...FZ.list.values()].filter((v) => v.sim).length; fzSetState('Fahrplan (simuliert), ' + ns + ' Fahrzeuge' + (vbbOk ? '' : ', Live nach Einwilligung unter „Aktuell“')); }
+    if (!liveOk) { const ns = [...FZ.list.values()].filter((v) => v.sim).length; fzSetState('Fahrplan (simuliert), ' + ns + ' Fahrzeuge' + (vbbOk || !VBB_HOSTS.length ? '' : ', Live nach Einwilligung unter „Aktuell“')); }
   }
   function fzStart() {
     if (!S.L.fahrzeuge) return;
@@ -1432,7 +1476,7 @@
       + '<dt>Bushaltepunkte</dt><dd>' + bus + '</dd><dt>Orte</dt><dd>' + PLACES.filter((p) => p.o === i).length + '</dd>'
       + (BRW && BRW_Z.some((q) => q.o === i) ? '<dt>Bodenrichtwert</dt><dd>' + BRW_Z.filter((q) => q.o === i).map((q) => '<b>' + esc(fmtW(q.w)) + '</b> <span class="s">' + esc(q.artDe) + '</span>').join('') + '<span class="s">Stichtag ' + esc(fmtIso(BRW.stichtag)) + ', Bauland</span></dd>' : '') + '</dl>'
       + (ORTSTEILE_SEITE ? '<a href="' + ORTSTEILE_SEITE + '" target="_blank" rel="noopener">Ortsporträt auf der Website von ' + esc(ORT_NAME) + ' →</a>' : '')
-      + sourceLine('Ortsporträts: Website der Gemeinde' + (M.ortsteilInfo && M.ortsteilInfo.gelesen ? ' (gelesen ' + fmtIso(M.ortsteilInfo.gelesen) + ')' : '') + '; Grenzen: OpenStreetMap; Adressen und Gebäude: LGB', ORTSTEILE_SEITE));
+      + sourceLine('Ortsporträts: Website der Gemeinde' + (M.ortsteilInfo && M.ortsteilInfo.gelesen ? ' (gelesen ' + fmtIso(M.ortsteilInfo.gelesen) + ')' : '') + '; Grenzen: OpenStreetMap; Adressen und Gebäude: ' + GEO.kurz, ORTSTEILE_SEITE));
     flyTo({ tx: o.x, tz: o.z, dist: 1500, phi: 0.95 }, 1600);
   }
 
@@ -1570,7 +1614,7 @@
     qRes.hidden = true; qIn.value = STREETS[r[0]] + ' ' + r[1]; qIn.blur();
     flyTo({ tx: r[2], tz: r[3], dist: 140, phi: 0.95 }, 1500);
     if (r[7] >= 0) { S.pending = { key: r[5] + '_' + r[6], k: r[7] }; loadTile(S.pending.key); }
-    else { clearSel(); openCard('<h3>' + esc(STREETS[r[0]] + ' ' + r[1]) + '</h3><p class="sub">' + esc(otName(r[4])) + '</p><p class="note">Zu dieser Adresse gibt es kein Gebäudemodell in der Nähe.</p>' + sourceLine('LGB Brandenburg, Adressen (dl-de/by-2.0)', 'https://www.govdata.de/dl-de/by-2-0')); }
+    else { clearSel(); openCard('<h3>' + esc(STREETS[r[0]] + ' ' + r[1]) + '</h3><p class="sub">' + esc(otName(r[4])) + '</p><p class="note">Zu dieser Adresse gibt es kein Gebäudemodell in der Nähe.</p>' + sourceLine(GEO.kurz + (ADDR_OSM ? ' und OpenStreetMap' : '') + ', Adressen (' + GEO.lizenz + ')', GEO.url)); }
   }
   qIn.addEventListener('input', () => { if (!qIn.value.trim()) qOt = -1; searchRun(); });
   qIn.addEventListener('keydown', (e) => { if (e.key === 'Enter' && qItems[0]) { e.preventDefault(); qItems[0].a(); } if (e.key === 'Escape') { qRes.hidden = true; } });
@@ -1578,6 +1622,10 @@
   document.addEventListener('click', (e) => { if (!e.target.closest('.search')) qRes.hidden = true; });
 
   // ------------------------------------------------------------------ Menues
+  if ($('#otCount')) $('#otCount').textContent = OT.length + ' Ortsteile';
+  if (!BRW) { // ohne Bodenrichtwerte (z. B. Bayern): Schalter ausblenden
+    $$('input[name=colormode][value=brw], input[data-layer=brw]').forEach((el) => { const l = el.closest('label'); if (l) l.style.display = 'none'; });
+  }
   $$('input[name=colormode]').forEach((r) => { r.onchange = () => { S.colorMode = r.value; for (const k in T) recolorTile(T[k]); updateLegend(); }; });
   const otSel = $('#otSel');
   OT.forEach((o, i) => { const op = document.createElement('option'); op.value = i; op.textContent = o.n; otSel.appendChild(op); });
@@ -1611,7 +1659,7 @@
     };
   });
   $('#sourcesBody').innerHTML = '<ul>'
-    + '<li><b>Luftbild, Gebäude (3D, LoD2), Adressen:</b> © GeoBasis-DE/LGB, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a> (Daten geändert). Landesvermessung und Geobasisinformation Brandenburg. ' + M.nBuildings + ' Gebäude, ' + M.nAddr + ' Adressen, Stand ' + esc(M.stand) + '. Das Luftbild ist ein Abzug mit 1 bis 2 m je Bildpunkt, nicht das Original mit 20 cm.</li>'
+    + '<li><b>Luftbild, Gebäude (3D, LoD2), Adressen:</b> ' + esc(GEO.text) + ', <a href="' + esc(GEO.url) + '" target="_blank" rel="noopener">' + esc(GEO.lizenz) + '</a>.' + (ADDR_OSM ? ' Adressen aus den Gebäudedaten, ergänzt um Hausnummern aus OpenStreetMap (ODbL), daher nicht vollständig.' : '') + ' ' + M.nBuildings + ' Gebäude, ' + M.nAddr + ' Adressen, Stand ' + esc(M.stand) + '. Das Luftbild ist ein Abzug mit 1 bis 2 m je Bildpunkt, nicht das Original mit 20 cm.</li>'
     + '<li><b>Straßen, Orte, Haltestellen, Flächen, Grenzen, Öffnungszeiten:</b> © OpenStreetMap-Mitwirkende, <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">ODbL</a>. Öffnungszeiten stammen aus OSM und können veraltet sein.</li>'
     + (BRW ? '<li><b>Bodenrichtwerte:</b> BORIS Brandenburg (Gutachterausschuss, bereitgestellt vom LGB), © GeoBasis-DE/LGB, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a> (Daten geändert), Stichtag ' + esc(fmtIso(BRW.stichtag)) + '. Zone und Werte wie veröffentlicht, nur Euro je m². Ein Bodenrichtwert ist ein durchschnittlicher Lagewert und kein Verkehrswert. Maßgeblich ist die amtliche Auskunft (<a href="https://boris.brandenburg.de" target="_blank" rel="noopener">BORIS Brandenburg</a>).</li>' : '')
     + '<li><b>Bäume:</b> symbolisch. Sie werden in Waldflächen zufällig verteilt und zeigen keine echten Einzelbäume.</li>'
@@ -1624,11 +1672,13 @@
     + '<li><b>Schriften:</b> Sora und JetBrains Mono, SIL Open Font License 1.1, lokal eingebunden.</li>'
     + '<li><b>Wetter (nur auf Wunsch):</b> Deutscher Wetterdienst (DWD, offene Daten nach GeoNutzV) über die freie Schnittstelle <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a>. Der Browser ruft die Daten erst nach Ihrer Zustimmung direkt dort ab. Dazu gehören die amtlichen Wetterwarnungen des DWD. Die Wolkenebene auf der Karte ist eine Veranschaulichung: Sie folgt dem gemeldeten Bedeckungsgrad und der Windrichtung, zieht im Zeitraffer und zeigt keine echten Wolkenformen.</li>'
     + '<li><b>Luftqualität (nur auf Wunsch):</b> Modelldaten des Copernicus-Dienstes CAMS über <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener">Open-Meteo</a>, CC BY 4.0, keine Messung vor Ort. Abruf erst nach Ihrer Zustimmung direkt aus dem Browser.</li>'
-    + (ORT.baustellen ? '<li><b>Baustellen und Sperrungen (nur auf Wunsch):</b> © Landesbetrieb Straßenwesen Brandenburg, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2.0</a>, über den Geodienst isk.geobasis-bb.de. Abruf erst nach Ihrer Zustimmung direkt aus dem Browser.</li>' : '')
+    + (BRW_LIVE ? '<li><b>Bodenrichtwerte (nur auf Wunsch):</b> ' + esc(BRW_LIVE.kurz) + ', Dienst ' + esc(BRW_LIVE.host) + ', <a href="' + esc(BRW_LIVE.info) + '" target="_blank" rel="noopener">BORIS-Bayern</a>. Abfrage erst nach Ihrer Zustimmung direkt aus dem Browser für die angeklickte Stelle, die Karte speichert keine Werte. Keine amtliche Auskunft.</li>' : '')
+    + (ORT.baustellen === 'mobilithek' ? '<li><b>Baustellen und Sperrungen:</b> Baustellenmeldungen in Bayern der Zentralstelle Verkehrsmanagement, über die <a href="https://mobilithek.info/" target="_blank" rel="noopener">Mobilithek</a>, Lizenz GeoNutzV. Vom Betreiber abgerufen und mit der Seite ausgeliefert, Ihr Browser verbindet sich dafür mit keinem fremden Dienst.</li>' : '')
+    + (ORT.baustellen === 'bb' ? '<li><b>Baustellen und Sperrungen (nur auf Wunsch):</b> © Landesbetrieb Straßenwesen Brandenburg, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2.0</a>, über den Geodienst isk.geobasis-bb.de. Abruf erst nach Ihrer Zustimmung direkt aus dem Browser.</li>' : '')
     + (VBB_HOSTS.length ? '<li><b>Live-Abfahrten und Meldungen Bahn und Bus (nur auf Wunsch):</b> Echtzeitdaten (Abfahrten, Meldungen, Fahrzeugpositionen für die bewegten Fahrzeugmodelle; die Modelle sind Miniaturen nach Betreiber, die Wagenzahl ist angenommen) über die freien, inoffiziellen Schnittstellen ' + esc(VBB_HOSTS.map((h) => h.replace('https://', '')).join(' und ')) + ' (<a href="https://github.com/public-transport/transport.rest" target="_blank" rel="noopener">transport.rest</a>). Abruf erst nach Ihrer Zustimmung direkt aus dem Browser. Ohne Gewähr.</li>' : '')
     + (ORT.muell ? '<li><b>Müllabfuhr (nur auf Wunsch):</b> eingebettete Abfuhrabfrage: <a href="' + esc(ORT.muell.seite || ORT.muell.url) + '" target="_blank" rel="noopener">' + esc(ORT.muell.name) + '</a>. Die Termine stammen von dort und werden hier nicht gespeichert.' + (ORT.muell.hinweis ? ' ' + esc(ORT.muell.hinweis) : '') + '</li>' : '')
     + '<li><b>Aktualisierung:</b> Orte, Haltestellen und Fahrplan wöchentlich' + (NEWS.stand ? ' (letzter Lauf ' + esc(fmtIso(NEWS.stand)) + ')' : '') + ', Gebäude und Adressen vierteljährlich, Bodenrichtwerte jährlich.</li>'
-    + (ORTSTEILE_SEITE ? '<li><b>Ortsinformationen (Einwohnerzahl, Ersterwähnung, Sehenswertes):</b> Ortsporträts auf der <a href="' + ORTSTEILE_SEITE + '" target="_blank" rel="noopener">Website: ' + esc(ORT_NAME) + '</a>' + (M.ortsteilInfo && M.ortsteilInfo.gelesen ? ' (gelesen am ' + esc(fmtIso(M.ortsteilInfo.gelesen)) + ')' : '') + '. Übernommen werden nur einzelne Angaben, keine Texte und keine Personen. Einwohnerzahlen sind Angaben aus den Texten ohne einheitlichen Stand, bei ' + OT.filter((o) => !ewText(o)).length + ' von ' + OT.length + ' Ortsteilen fehlt sie. Fläche, Adress- und Gebäudezahl stammen aus eigenen Daten (Grenze: OpenStreetMap, Adressen und Gebäude: LGB).</li>' : '')
+    + (ORTSTEILE_SEITE ? '<li><b>Ortsinformationen (Einwohnerzahl, Ersterwähnung, Sehenswertes):</b> Ortsporträts auf der <a href="' + ORTSTEILE_SEITE + '" target="_blank" rel="noopener">Website: ' + esc(ORT_NAME) + '</a>' + (M.ortsteilInfo && M.ortsteilInfo.gelesen ? ' (gelesen am ' + esc(fmtIso(M.ortsteilInfo.gelesen)) + ')' : '') + '. Übernommen werden nur einzelne Angaben, keine Texte und keine Personen. Einwohnerzahlen sind Angaben aus den Texten ohne einheitlichen Stand, bei ' + OT.filter((o) => !ewText(o)).length + ' von ' + OT.length + ' Ortsteilen fehlt sie. Fläche, Adress- und Gebäudezahl stammen aus eigenen Daten (Grenze: OpenStreetMap, Adressen und Gebäude: ' + esc(GEO.kurz) + ').</li>' : '')
     + '<li><b>3D-Darstellung:</b> three.js (MIT-Lizenz), läuft lokal im Browser, es werden keine Daten an Dritte gesendet.</li></ul><p class="note">Prototyp. Keine Gewähr für Richtigkeit und Vollständigkeit.</p>';
 
   // ------------------------------------------------------------------ Schleife
@@ -1666,7 +1716,7 @@
     const st = window.AL_STAND, el = $('#stand');
     if (!st || !el) return;
     el.textContent = 'Daten: ' + fmtIso(st.lauf);
-    el.title = 'Orte und Haltestellen ' + fmtIso(st.osm) + ' · Fahrplan gültig ' + fmtIso(st.fahrplan.von) + ' bis ' + fmtIso(st.fahrplan.bis) + ' · Termine ' + fmtIso(st.termine.stand) + ' · Gebäude und Adressen (LGB) abgerufen ' + fmtIso(st.lgb);
+    el.title = 'Orte und Haltestellen ' + fmtIso(st.osm) + ' · Fahrplan gültig ' + fmtIso(st.fahrplan.von) + ' bis ' + fmtIso(st.fahrplan.bis) + ' · Termine ' + fmtIso(st.termine.stand) + ' · Gebäude und Adressen (' + GEO.kurz + ') abgerufen ' + fmtIso(st.lgb);
   })();
   (function sprungZumOrtsteil() { // Links der Startseite: karte.html#ortsteil=<Nummer>
     const m = /ortsteil=(\d+)/.exec(location.hash);

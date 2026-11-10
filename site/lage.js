@@ -67,8 +67,35 @@
       + '<span class="lgz">' + dmy(g.von) + ' bis ' + dmy(g.bis) + (g.von > new Date().toISOString().slice(0, 10) ? ' (geplant)' : '') + (erst ? ' · ' + esc(erst.slice(0, 90)) : '') + '</span></summary>'
       + '<p class="lgd">' + esc(kurz.slice(0, 700)).replace(/\n/g, '<br>') + '</p></details>';
   }
+  // Bayern: Meldungen aus der eigenen Datei data/baustellen.json (scripts/fetch_baustellen_by.py, Quelle Mobilithek).
+  // Die Datei liegt auf diesem Server, deshalb ist keine Einwilligung noetig. Fehlt sie, bleibt der Kasten ausgeblendet.
+  function eintragBy(e) {
+    var kurz = String(e.text || '').replace(/\n{2,}/g, '\n').trim();
+    return '<details class="lgbau"><summary><b>' + esc(e.strasse || 'Straße') + '</b> · ' + esc(e.ort) + ' <span class="lgtag' + (e.sperr ? ' s' : '') + '">' + (e.sperr ? 'Sperrung' : 'Baustelle') + '</span>'
+      + '<span class="lgz">' + dmy(e.von) + ' bis ' + dmy(e.bis) + (e.geplant ? ' (geplant)' : '') + (e.hier ? '' : ' · ' + String(e.km).replace('.', ',') + ' km entfernt') + '</span></summary>'
+      + '<p class="lgd">' + esc(kurz).replace(/\n/g, '<br>') + (e.umleitung ? '<br><br>' + esc(e.umleitung).replace(/\n/g, '<br>') : '') + '</p></details>';
+  }
+  function baustellenBy(box) {
+    getJson('data/baustellen.json').then(function (d) {
+      var heute = new Date().toISOString().slice(0, 10), tag = d.test ? d.stichtag : heute;
+      var all = (d.meldungen || []).filter(function (e) { return e.bis >= tag; });
+      all.forEach(function (e) { e.geplant = e.von > tag; });
+      var hier = all.filter(function (e) { return e.hier; }), nah = all.filter(function (e) { return !e.hier; });
+      box.style.display = '';
+      box.innerHTML = '<div class="lg"><b class="lgt">Baustellen und Sperrungen</b>'
+        + (d.test ? '<p class="lgn"><b>Testdaten</b> vom ' + dmy(d.stichtag) + ', nicht aktuell.</p>' : '')
+        + '<h4 class="lgh">In ' + esc(ORTN) + '</h4>'
+        + (hier.length ? hier.map(eintragBy).join('') : '<p class="lgd">Keine Meldung für die Gemeinde.</p>')
+        + (nah.length ? '<h4 class="lgh">In der Umgebung (bis ' + d.umkreisKm + ' km)</h4>' + nah.slice(0, 10).map(eintragBy).join('') : '')
+        + '<p class="lgn">Quelle: Baustellenmeldungen in Bayern der Zentralstelle Verkehrsmanagement, über die <a href="https://mobilithek.info/" target="_blank" rel="noopener">Mobilithek</a> (GeoNutzV). '
+        + 'Erfasst sind Autobahnen, Bundes-, Staats- und Kreisstraßen sowie Meldungen der Gemeinden. Keine Meldung heißt nicht, dass es keine Baustelle gibt. Stand ' + dmy(d.stand) + ', ' + d.stand.slice(11, 16) + ' Uhr. Ohne Gewähr.</p></div>';
+    })['catch'](function () { box.style.display = 'none'; });
+  }
   function baustellen(box) {
     var KEY = 'alw-bau', again = function () { baustellen(box); };
+    if (!box) return;
+    if ((window.ORT || {}).baustellen === 'mobilithek') { baustellenBy(box); return; }
+    if ((window.ORT || {}).baustellen !== 'bb') { box.style.display = 'none'; return; } // nur Brandenburg und Bayern verdrahtet (scripts/laender.py)
     if (!window.fetch) return;
     if (!ok(KEY)) { box.innerHTML = consentHtml('Baustellen und Sperrungen', 'Aktuelle Baustellen und Sperrungen auf Bundes- und Landesstraßen in der Gemeinde und Umgebung.', 'isk.geobasis-bb.de', 'Geodienst des Landes Brandenburg, Daten des Landesbetriebs Straßenwesen'); bind(box, KEY, again); return; }
     box.innerHTML = '<p class="lgn">Baustellen werden geladen …</p>';

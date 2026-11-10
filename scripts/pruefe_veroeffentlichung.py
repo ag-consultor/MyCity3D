@@ -49,6 +49,9 @@ for key, fn in (("impressum_url", "Impressum"), ("datenschutz_url", "Datenschutz
         warn.append("%s nicht eingetragen (ort.json, veroeffentlichung.%s). Wer die Seite betreibt, braucht in Deutschland Impressum und Datenschutzerklaerung." % (fn, key))
     elif not re.match(r"https?://", v):
         fehler.append("ort.json: %s ist keine gueltige https-Adresse: %s" % (key, v))
+bau = os.path.join(SITE, "data", "baustellen.json")
+if os.path.exists(bau) and json.load(open(bau, encoding="utf-8")).get("test"):
+    fehler.append("site/data/baustellen.json enthaelt Testdaten. Loeschen oder mit echtem Zugang neu abrufen (scripts/fetch_baustellen_by.py).")
 if not os.path.exists(os.path.join(SITE, "img", "vorschau.jpg")):
     warn.append("site/img/vorschau.jpg fehlt (Bildschirmfoto der Karte fuer die Startseite)")
 

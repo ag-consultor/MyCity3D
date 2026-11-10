@@ -1,6 +1,6 @@
 # Anderes Bundesland
 
-Fertig verdrahtet sind die Geodienste von **Brandenburg**. Für ein anderes Land bleibt alles bis auf wenige Bausteine gleich. Das ist Arbeit, aber kein Umbau der Seite.
+Fertig verdrahtet sind die Geodienste von **Brandenburg** und **Bayern** (`docs/BAYERN.md`). Jedes Land ist ein Eintrag in `scripts/laender.py`; der bayerische Zweig zeigt, wie ein Land mit CityGML-Download statt WFS und ohne amtliche Adressen eingebunden wird. Für ein anderes Land bleibt alles bis auf vier Bausteine gleich. Das ist Arbeit, aber kein Umbau der Seite.
 
 | Baustein | Datei | Was zu tun ist |
 |---|---|---|

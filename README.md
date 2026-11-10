@@ -13,31 +13,33 @@ Vorschau am Beispielort Niedergörsdorf: https://niedergoersdorf-in-3d.digital-a
 |---|---|
 | Karte | 3D-Gebäude (LoD2) auf dem Luftbild, Sonnenstand mit Schatten, Design „Nachtflug“ (dunkel, Glas-Panels), Handy-Layout |
 | Einfärben | Nutzung, Höhe, Bodenrichtwert, **Dachfarbe** (aus dem Luftbild), **Solar-Eignung** (Schätzung aus den Dachflächen); Annahmen im Dialog „Quellen“ |
-| Gelände | Höhenangaben je Gebäude und Ort, abschaltbares Geländerelief (nur Brandenburg, `bausteine.gelaende`) |
+| Gelände | Höhenangaben je Gebäude und Ort, abschaltbares Geländerelief (bisher nur Brandenburg, `bausteine.gelaende`) |
 | Orte und Termine | Orte nach Gruppen per **Mehrfachauswahl**, Termine nach Kategorien per Mehrfachauswahl; Reiter „Ort \| Termine“ an der Ortskarte, „Veranstaltung \| Ort“ an der Terminkarte |
 | Bus und Bahn | Haltestellen mit Reitern **Live** und **Plan** (nur Abfahrten ab jetzt, 24 Stunden); **Fahrzeuge** als Miniaturmodelle: Züge folgen dem Gleisnetz, ohne Live-Daten nach dem Sollfahrplan, mit Live-Daten an ihrer Position; Verfolgen mit Spur |
 | Wetter | Wetter und amtliche Warnungen, **Wolkenebene** als Shader nach Bedeckungsgrad und Windrichtung des DWD |
-| Aktuelle Lage | Luftqualität, Baustellen (nur Brandenburg), optional eingebettete Müllabfuhr-Abfrage |
+| Aktuelle Lage | Luftqualität, Baustellen (Brandenburg live, Bayern über die Mobilithek), optional eingebettete Müllabfuhr-Abfrage |
 | Teilen | Link zur Ansicht (`#k=…&l=…`: Kamera, Ebenen, Einfärbung, gewählter Ort) |
 | Datenschutz | Inhaltsrichtlinie (CSP) ohne Inline-Skripte, aus `ort.json` erzeugt; keine Verbindung zu Dritten ohne Klick |
 | Pflege | Korrekturen von Betreibern ohne Eingriff in OpenStreetMap (`docs/KORREKTUREN.md`), Kachelkennung gegen veraltete Zwischenspeicher (`data/tv.js`, `versionieren.py`) |
 
-## Wichtig vorab: nur Brandenburg ist fertig verdrahtet
+## Verdrahtet sind Brandenburg und Bayern
 
-| Baustein | Quelle | Gilt für |
+Welches Land gilt, steht in `ort.json` unter `land.kennung` (`BB` oder `BY`). Die Dienste je Land sind in `scripts/laender.py` gesammelt. Bayern mit dem Beispielort Cham beschreibt `docs/BAYERN.md`.
+
+| Baustein | Brandenburg | Bayern |
 |---|---|---|
-| Gebäude (3D, LoD2), Adressen, Luftbild | Landesvermessung und Geobasisinformation Brandenburg (LGB), dl-de/by-2-0 | **Brandenburg** |
-| Bodenrichtwerte | BORIS Brandenburg | **Brandenburg** |
-| Gelände (DGM), Relief | LGB Brandenburg, dl-de/by-2-0 | **Brandenburg**, abschaltbar |
-| Baustellen und Sperrungen | Landesbetrieb Straßenwesen Brandenburg | **Brandenburg**, abschaltbar |
-| Müllabfuhr | Abfuhrabfrage des örtlichen Entsorgers (eingebettet) | frei einstellbar, Beispiel Südbrandenburg |
-| Fahrplan (Sollfahrplan) | VBB-GTFS, CC BY 4.0 (austauschbar, `ort.json`) | VBB-Gebiet, sonst anderen Feed eintragen |
-| Live-Abfahrten | freie `transport.rest`-Instanzen (austauschbar) | Netz der gewählten Instanz |
-| Straßen, Orte, Haltestellen, Grenzen | OpenStreetMap, ODbL | überall |
-| Wetter, Warnungen | Deutscher Wetterdienst über Bright Sky | Deutschland |
-| Luftqualität | Copernicus CAMS über Open-Meteo, CC BY 4.0 | Europa |
+| Luftbild, Gebäude (3D, LoD2) | LGB, dl-de/by-2-0 | Bayerische Vermessungsverwaltung, CC BY 4.0 |
+| Adressen | amtliche Adresspunkte (LGB) | aus LoD2, ergänzt aus OpenStreetMap |
+| Bodenrichtwerte | BORIS Brandenburg, als Zonen auf der Karte | auf Klick live vom LDBV-Dienst, nichts gespeichert |
+| Gelände (DGM), Relief | LGB, abschaltbar | *(noch offen)* |
+| Baustellen und Sperrungen | Landesbetrieb Straßenwesen, live | Mobilithek (DATEX II), eigener Zugang nötig |
+| Müllabfuhr | Abfuhrabfrage des örtlichen Entsorgers (eingebettet, frei einstellbar) | wie Brandenburg |
+| Fahrplan (Sollfahrplan) | VBB-GTFS, CC BY 4.0 | gtfs.de (DELFI), CC BY 4.0 |
+| Live-Abfahrten | freie `transport.rest`-Instanzen | zurzeit keine erreichbar, abgeschaltet |
 
-Für andere Bundesländer müssen die Geodienste in `scripts/fetch.py` ausgetauscht werden: `docs/ANDERES-BUNDESLAND.md`. Die Brandenburg-Bausteine (Baustellen, Gelände) stehen in `ort.json` unter `bausteine` und gehören dort auf `false`; die Müllabfuhr-Einbettung wird eingetragen oder auf `null` gesetzt. Quellen, Lizenzen und verworfene Daten: `docs/DATENQUELLEN.md`.
+Überall gleich: Straßen, Orte, Haltestellen und Grenzen aus OpenStreetMap (ODbL), Wetter und Warnungen vom Deutschen Wetterdienst über Bright Sky, Luftqualität von Copernicus CAMS über Open-Meteo (CC BY 4.0).
+
+Für weitere Bundesländer kommt ein Eintrag in `scripts/laender.py` dazu, siehe `docs/ANDERES-BUNDESLAND.md`. Bausteine, die es nur in einem Land gibt, stehen in `ort.json` unter `bausteine`.
 
 ## Schnellstart
 

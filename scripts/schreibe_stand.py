@@ -40,7 +40,7 @@ def main():
         "fahrplan": {"stand": fp["stand"], "von": iso(fp["feedFrom"]), "bis": iso(fp["feedTo"])},
         "termine": {"stand": ev.get("stand"), "anzahl": len(ev.get("items", [])), "quelle": ", ".join(ev.get("quellen") or [(ev.get("quelle") or {}).get("name") or ""])},
         "ortsteilInfo": (meta.get("ortsteilInfo") or {}).get("gelesen"),
-        "brw": brw.get("stichtag"),
+        "brw": (brw or {}).get("stichtag"),
         "lgb": lgb_abruf(),
         "adressen": meta["nAddr"], "gebaeude": meta["nBuildings"], "orte": sum(1 for p in meta["pois"] if not p.get("nb")), "haltestellen": sum(1 for s in meta["stops"] if not s.get("nb")),
         "orteNb": sum(1 for p in meta["pois"] if p.get("nb")),

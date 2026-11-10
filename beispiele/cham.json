@@ -1,0 +1,54 @@
+{
+  "_hinweis": "Einzige Datei, die du fuer deinen Ort anpassen musst. Werte: Stadt Cham (Bayern). Brandenburger Beispiel in beispiele/niedergoersdorf.json, Cham in beispiele/cham.json. Danach: python scripts/ort_pruefen.py",
+  "name": "Cham",
+  "name_ascii": "Cham",
+  "art": "Stadt",
+  "untertitel": "Karte der Stadt",
+  "kurzbeschreibung": "Die Stadt Cham in der Oberpfalz als interaktive 3D-Karte aus offenen Daten: Gebäude, Adresssuche, Orte, Haltestellen, Veranstaltungen und Sonnenstand.",
+  "kontakt_ua": "MyCity3D (Kontakt: deine@mailadresse.de)",
+  "geo": {
+    "lat0": 49.2022,
+    "lon0": 12.6563,
+    "kachel_m": 2000,
+    "osm_relation": 960533,
+    "gemeindeschluessel": "09372116",
+    "wetter_lat": 49.218,
+    "wetter_lon": 12.666,
+    "umgrenzung_sued_west_nord_ost": [
+      49.125,
+      12.54,
+      49.28,
+      12.775
+    ]
+  },
+  "nachbarort": null,
+  "land": {
+    "_hinweis": "Luftbild, Gebaeude und Adressen kommen aus den Geodiensten des Bundeslandes (scripts/laender.py). Verdrahtet: BB (Brandenburg), BY (Bayern). Andere Laender: docs/ANDERES-BUNDESLAND.md",
+    "name": "Bayern",
+    "kennung": "BY"
+  },
+  "fahrplan": {
+    "_hinweis": "GTFS-Sollfahrplan fuer ganz Deutschland von gtfs.de (DELFI, CC BY 4.0, ca. 280 MB). Live-Abfahrten: fuer Bayern ist zurzeit keine freie transport.rest-Instanz erreichbar, deshalb aus.",
+    "gtfs_url": "https://download.gtfs.de/germany/free/latest.zip",
+    "betreiber": "DELFI e.V. über gtfs.de",
+    "lizenz": "CC BY 4.0",
+    "lizenz_url": "https://gtfs.de/de/feeds/de_full/",
+    "haltestellen_praefix": "de:09372",
+    "live_hosts": [],
+    "live_aus": true,
+    "betreiber_kurz": "gtfs.de"
+  },
+  "veroeffentlichung": {
+    "impressum_url": "",
+    "datenschutz_url": "",
+    "winscp_sitzung": "",
+    "zielordner": ""
+  },
+  "bausteine": {
+    "_hinweis": "Optionale Bausteine. baustellen und gelaende gibt es nur fuer Brandenburg (Dienste des Landes), fuer andere Laender auf false lassen. muellabfuhr: Einbettung der Abfuhrabfrage des oertlichen Entsorgers (Adresse des Formulars, das er selbst auf seiner Seite einbettbar anbietet); null = keine Muellabfuhr. Das Beispiel gilt fuer Suedbrandenburg (SBAZV). Fremde Formulare setzen oft ein Cookie: in der Datenschutzerklaerung nennen. solar_kwh_je_kwp: Jahresertrag je kWp bei bester Ausrichtung fuer die Solar-Schaetzung (Mitteldeutschland etwa 980).",
+    "baustellen": true,
+    "gelaende": false,
+    "muellabfuhr": null,
+    "solar_kwh_je_kwp": 1020
+  }
+}

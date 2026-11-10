@@ -2,12 +2,13 @@
    Der Klick öffnet einen Hinweis mit den Diensten; erst „Alle Live-Daten laden“ erteilt die Einwilligung für alle auf einmal und lädt die Seite neu.
    Ohne diesen Klick (oder die Einzelschalter) findet keine Verbindung zu Dritten statt. Eine eingebettete Müllabfuhr-Abfrage (falls in ort.json
    eingetragen; sie setzt meist ein Cookie) bleibt ein eigener Schalter. Gemerkt wird nur im Browser (localStorage), jederzeit widerrufbar.
-   Welche Dienste dazugehören, steht in ort.json (window.ORT): fahrplan.live_hosts, bausteine.baustellen. */
+   Welche Dienste dazugehören, steht in ort.json (window.ORT): fahrplan.live_hosts, bausteine.baustellen, Bodenrichtwerte live (scripts/laender.py brw_live). */
 (function () {
   'use strict';
   var O = window.ORT || {}, HOSTS = O.liveHosts || [];
   var KEYS = ['alw-ok', 'alw-luft'];
-  if (O.baustellen) KEYS.push('alw-bau');
+  if (O.baustellen === 'bb') KEYS.push('alw-bau'); // Bayern: Baustellen kommen aus einer eigenen Datei, ohne Fremdabruf
+  if (O.brwLive) KEYS.push('alw-brw');
   if (HOSTS.length) KEYS.push('alw-vbb');
   var CACHES = ['alw-cache2', 'alw-luft-c', 'alw-bau-c'];
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -15,7 +16,8 @@
   function allOn() { return KEYS.every(get); }
   function anyOn() { return KEYS.some(get); }
   var namen = ['Wetter', 'Luftqualität'];
-  if (O.baustellen) namen.push('Baustellen');
+  if (O.baustellen === 'bb') namen.push('Baustellen');
+  if (O.brwLive) namen.push('Bodenrichtwerte');
   if (HOSTS.length) namen.push('Bahn und Bus');
   var liste = namen.slice(0, -1).join(', ') + ' sowie ' + namen[namen.length - 1];
   var btn = document.createElement('button');
@@ -39,7 +41,8 @@
         + '<div class="lgbtns"><button type="button" class="wxbtn" data-aus>Live-Daten ausschalten</button><button type="button" class="btn ghost" data-zu>Schließen</button></div>';
     } else {
       var li = '<li><b>Wetter und amtliche Warnungen</b><small>api.brightsky.dev (Deutscher Wetterdienst)</small></li><li><b>Luftqualität</b><small>air-quality-api.open-meteo.com</small></li>';
-      if (O.baustellen) li += '<li><b>Baustellen und Sperrungen</b><small>isk.geobasis-bb.de (Land Brandenburg)</small></li>';
+      if (O.baustellen === 'bb') li += '<li><b>Baustellen und Sperrungen</b><small>isk.geobasis-bb.de (Land Brandenburg)</small></li>';
+      if (O.brwLive) li += '<li><b>Bodenrichtwert an der angeklickten Stelle</b><small>' + esc(O.brwLive.host) + ' (Bayerische Vermessungsverwaltung)</small></li>';
       if (HOSTS.length) li += '<li><b>Bahn und Bus, Fahrzeuge auf der Karte</b><small>' + esc(HOSTS.map(function (h) { return h.replace('https://', ''); }).join(' oder ')) + '</small></li>';
       dlg.innerHTML = '<h2 id="lgdT">Live-Daten laden</h2><p>Mit einem Klick werden diese Daten <b>direkt von Ihrem Browser</b> bei den Diensten abgerufen. Dabei wird Ihre IP-Adresse an den jeweiligen Dienst übertragen. Ohne Ihre Zustimmung findet keine Verbindung statt.</p>'
         + '<ul class="lglinks">' + li + '</ul>'

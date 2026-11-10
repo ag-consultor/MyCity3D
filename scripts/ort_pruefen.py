@@ -7,7 +7,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from geo import ORT  # noqa: E402
+from geo import LAND, ORT, ROOT  # noqa: E402
 
 sys.stdout.reconfigure(encoding="utf-8")
 fehler, warn = [], []
@@ -41,14 +41,22 @@ if not re.fullmatch(r"\d{8}", str(g["gemeindeschluessel"])):
     fehler.append("geo.gemeindeschluessel muss der 8-stellige amtliche Gemeindeschluessel (AGS) sein")
 if not isinstance(g["osm_relation"], int) or g["osm_relation"] <= 0:
     fehler.append("geo.osm_relation muss die OSM-Relationsnummer der Gemeindegrenze sein")
-if ORT["land"].get("kennung") != "BB" or not str(g["gemeindeschluessel"]).startswith("12"):
-    warn.append("Luftbild, Gebaeude, Adressen und Bodenrichtwerte sind nur fuer Brandenburg (AGS beginnt mit 12) verdrahtet. Siehe docs/ANDERES-BUNDESLAND.md")
+if not str(g["gemeindeschluessel"]).startswith(LAND["ags_praefix"]):
+    fehler.append("geo.gemeindeschluessel %s passt nicht zu land.kennung %s (AGS beginnt dort mit %s)" % (g["gemeindeschluessel"], ORT["land"]["kennung"], LAND["ags_praefix"]))
+if not LAND.get("brw") and not LAND.get("brw_live"):
+    warn.append("Bodenrichtwerte sind fuer %s nicht angebunden, die Karte zeigt sie nicht." % LAND["name"])
+if LAND.get("baustellen") == "mobilithek" and not os.path.exists(os.path.join(ROOT, "site", "data", "baustellen.json")):
+    warn.append("Baustellen: site/data/baustellen.json fehlt, die Karte \"Baustellen\" bleibt ausgeblendet (scripts/fetch_baustellen_by.py, Zugang zur Mobilithek noetig).")
+if not LAND.get("baustellen"):
+    warn.append("Baustellen sind fuer %s nicht angebunden, die Karte \"Baustellen\" entfaellt." % LAND["name"])
 nb = ORT.get("nachbarort")
 if nb:
     bbox("nachbarort.bbox_sued_west_nord_ost", nb["bbox_sued_west_nord_ost"])
 bs = ORT.get("bausteine") or {}
-if (bs.get("baustellen") or bs.get("gelaende")) and (ORT["land"].get("kennung") != "BB"):
-    fehler.append("bausteine.baustellen und bausteine.gelaende nutzen Dienste des Landes Brandenburg: fuer andere Laender auf false setzen")
+if bs.get("baustellen") and not LAND.get("baustellen"):
+    fehler.append("bausteine.baustellen: fuer %s ist keine Baustellenquelle verdrahtet (scripts/laender.py), auf false setzen" % LAND["name"])
+if bs.get("gelaende") and ORT["land"].get("kennung") != "BB":
+    fehler.append("bausteine.gelaende nutzt das DGM des Landes Brandenburg: fuer andere Laender auf false setzen")
 m = bs.get("muellabfuhr")
 if m and not str(m.get("url", "")).startswith("https://"):
     fehler.append("bausteine.muellabfuhr.url muss eine https-Adresse sein (oder muellabfuhr auf null setzen)")

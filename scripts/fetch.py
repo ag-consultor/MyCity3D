@@ -3,10 +3,11 @@
 Aufruf:  python3 scripts/fetch.py <phase> [<phase> ...]
 Phasen:  boundary  Gemeindegrenze und Ortsteil-Grenzen (OSM)
          cells     2-km-Kacheln, die die Gemeinde beruehren
-         addr      Adresspunkte je Kachel (LGB)
+         addr      Adresspunkte je Kachel (amtlich, nur Laender mit Adress-WFS, sonst uebersprungen)
          osm       OSM-Auszug in 4-km-Bloecken
-         lod2      3D-Gebaeude je Kachel (LGB)
+         lod2      3D-Gebaeude (Brandenburg: WFS je Kachel, Bayern: CityGML-Kacheln per Metalink)
          dop       Luftbild: Uebersicht, je Kachel 2 m/px, bebaute Kacheln 1 m/px
+Die Dienste je Bundesland stehen in scripts/laender.py (Auswahl ueber ort.json -> land.kennung).
 
 Wiederaufnahmefaehig: vorhandene Dateien werden uebersprungen. Quellen und Lizenzen: README.md
 """
@@ -14,15 +15,16 @@ import io, json, math, os, sys, time, urllib.parse, urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from geo import CELL, GEMEINDE_RELATION, GEMEINDE_SCHLUESSEL, LAT0, LON0, M_LAT, M_LON, NB_BBOX, NB_NAME, pip, stitch, xz  # noqa: E402
+from geo import CELL, GEMEINDE_RELATION, GEMEINDE_SCHLUESSEL, LAND, LAT0, LON0, M_LAT, M_LON, NB_BBOX, NB_NAME, pip, stitch, xz  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, "data", "raw", "gemeinde")
 IMG = os.path.join(ROOT, "site", "img")
-UA = "GemeindeKarte-Prototyp/0.2"
+from geo import ORT  # noqa: E402
+UA = ORT.get("kontakt_ua") or "MyCity3D"
 OVERPASS = "https://overpass-api.de/api/interpreter"
-WFS = "https://inspire.brandenburg.de/services/"
-WMS = "https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms"
+WFS = "https://inspire.brandenburg.de/services/"  # nur Brandenburg (LAND["lod2"] == "wfs_bb")
+WMS = LAND["dop"]["url"]
 sys.stdout.reconfigure(encoding="utf-8")
 
 
@@ -82,6 +84,16 @@ def phase_boundary():
     if not have(p):
         log("Ortsteil-Grenzen laden")
         save(p, overpass('[out:json][timeout:120];area(%d)->.a;rel(area.a)["boundary"="administrative"]["admin_level"="9"];out geom;'
+                         % (3600000000 + GEMEINDE_RELATION)))
+    p = os.path.join(RAW, "ortsteile_orte.json")
+    if not have(p):  # Ersatz, wo OSM keine Ortsteil-Grenzen kennt (z. B. Cham): Gemeindeteile ueber die Ortsmarken, auch Weiler und Einoeden
+        log("Ortsmarken laden")
+        save(p, overpass('[out:json][timeout:120];area(%d)->.a;node["place"~"^(town|city|suburb|quarter|village|hamlet|isolated_dwelling)$"]["name"](area.a);out;'
+                         % (3600000000 + GEMEINDE_RELATION)))
+    p = os.path.join(RAW, "gebaeudearten.json")
+    if LAND["lod2"] == "citygml_by" and not have(p):  # Bayern: LoD2 kennt oft nur "Wirtschaft oder Gewerbe", OSM-Gebaeudeart hilft beim Einordnen
+        log("Gebaeudearten aus OSM laden")
+        save(p, overpass('[out:json][timeout:180];area(%d)->.a;way["building"]["building"!="yes"](area.a);out tags center;'
                          % (3600000000 + GEMEINDE_RELATION)))
 
 
@@ -146,18 +158,60 @@ def run_pool(fn, jobs, workers):
 
 
 def phase_addr():
+    if LAND["addr"] != "alkis_wfs":
+        log("Adressen: kein amtlicher Adress-WFS fuer %s, Adressen kommen aus LoD2 und OSM" % LAND["name"])
+        return
     c = load_cells()
     run_pool(lambda i, j: wfs_cell("addr", "ad_alkis_wfs", "ad:Address", c, i, j), [(i, j) for i, j in c["cells"]], 4)
 
 
 def phase_lod2():
+    if LAND["lod2"] == "citygml_by":
+        return lod2_bayern()
     c = load_cells()
     run_pool(lambda i, j: wfs_cell("lod2", "bu-core3d_lod2_wfs", "bu-core3d:Building", c, i, j), [(i, j) for i, j in c["cells"]], 4)
+
+
+def lod2_bayern():
+    """Bayern: LoD2 als CityGML-Kacheln (2 x 2 km, UTM 32) zum Herunterladen. Welche Kacheln die Gemeinde
+    beruehren, steht im Metalink der Gemeinde (geodaten.bayern.de, OpenData, CC BY 4.0). Mit Nachbarort
+    werden zusaetzlich die Kacheln seines Gemeindeschluessels geladen (ort.json: nachbarort.gemeindeschluessel)."""
+    import re
+    ags = [GEMEINDE_SCHLUESSEL]
+    nb = ORT.get("nachbarort") or {}
+    if nb.get("gemeindeschluessel"):
+        ags.append(str(nb["gemeindeschluessel"]))
+    urls = {}
+    for a in ags:
+        meta = http(LAND["lod2_metalink"].format(ags=a)).decode("utf-8")
+        for name, body in re.findall(r'<file name="([^"]+)">(.*?)</file>', meta, re.S):
+            u = re.findall(r"<url[^>]*>([^<]+)</url>", body)
+            if u:
+                urls[name] = u
+    log("LoD2 Bayern: %d Kacheln" % len(urls))
+
+    def one(name, us):
+        path = os.path.join(RAW, "lod2", "by_" + name)
+        if have(path):
+            return
+        last = None
+        for u in us:  # Spiegel nacheinander
+            try:
+                blob = http(u, tries=3)
+                save(path, blob)
+                log("lod2", name, "%.1f MB" % (len(blob) / 1e6))
+                return
+            except Exception as e:
+                last = e
+        raise RuntimeError("LoD2-Kachel %s: %s" % (name, last))
+    run_pool(one, sorted(urls.items()), 3)
 
 
 def phase_names():
     """Straßennamen: Adresspunkte verweisen nur auf ThoroughfareName-Kennungen (nur die der Gemeinde)."""
     import re
+    if LAND["addr"] != "alkis_wfs":
+        return
     ids = set()
     d = os.path.join(RAW, "addr")
     for fn in os.listdir(d):
@@ -187,8 +241,11 @@ OSM_Q = """[out:json][timeout:180];
  nwr["amenity"]["name"]({b}); nwr["shop"]["name"]({b}); nwr["tourism"]["name"]({b});
  nwr["office"]["name"]({b}); nwr["healthcare"]["name"]({b});
  node["highway"="bus_stop"]({b}); node["railway"~"^(station|halt|stop)$"]({b});
+ {addr}
 );
 out geom;"""
+# Ohne amtliche Adressen (Bayern): Hausnummern aus OSM mitladen
+OSM_ADDR = 'nwr["addr:housenumber"]({b});' if LAND["addr"] == "lod2_osm" else ""
 
 
 def phase_osm():
@@ -203,7 +260,7 @@ def phase_osm():
                 continue
             xa, za = c["x0"] + bi * CELL, c["z0"] + bj * CELL
             bb = "%.6f,%.6f,%.6f,%.6f" % (LAT0 - (za + 2 * CELL) / M_LAT, LON0 + xa / M_LON, LAT0 - za / M_LAT, LON0 + (xa + 2 * CELL) / M_LON)
-            blob = overpass(OSM_Q.replace("{b}", bb))
+            blob = overpass(OSM_Q.replace("{addr}", OSM_ADDR).replace("{b}", bb))
             save(path, blob)
             log("osm", bi, bj, "%.1f MB" % (len(blob) / 1e6))
             time.sleep(2)
@@ -211,13 +268,13 @@ def phase_osm():
 
 # ------------------------------------------------------------------ Luftbild
 def getmap(bbox, w, h):
-    url = (WMS + "?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=bebb_dop20c&STYLES=&CRS=EPSG:4326"
+    url = (WMS + "?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=" + LAND["dop"]["layer"] + "&STYLES=&CRS=EPSG:4326"
            "&BBOX=%.7f,%.7f,%.7f,%.7f&WIDTH=%d&HEIGHT=%d&FORMAT=image/jpeg" % (bbox + (w, h)))
     return http(url, timeout=300)
 
 
 def fill_nodata(im):
-    """Ausserhalb von Brandenburg liefert der Dienst reines Weiss. Zusammenhaengende Weissflaechen
+    """Ausserhalb des Landes liefert der Dienst reines Weiss. Zusammenhaengende Weissflaechen
     (mind. 5 Bildpunkte breit) werden durch die Umgebungsfarbe der Seite ersetzt. Gibt True zurueck, wenn etwas geaendert wurde."""
     from PIL import ImageChops, ImageFilter
     r, g, b = im.split()
@@ -257,6 +314,24 @@ def count_buildings(i, j):
         return f.read().count("<bu-core3d:Building ")
 
 
+def buildings_per_cell_by():
+    """Bayern: Gebaeude je Kachel aus den CityGML-Kacheln zaehlen (Mittelpunkt des ersten Polygons)."""
+    import re
+    from geo import utm_to_latlon, xz
+    c = load_cells()
+    cnt = {}
+    d = os.path.join(RAW, "lod2")
+    for fn in os.listdir(d) if os.path.isdir(d) else []:
+        if not fn.startswith("by_"):
+            continue
+        txt = open(os.path.join(d, fn), encoding="utf-8", errors="ignore").read()
+        for m in re.finditer(r"<bldg:Building .*?<gml:posList[^>]*>\s*([\d.]+) ([\d.]+)", txt, re.S):
+            x, z = xz(*utm_to_latlon(float(m.group(1)), float(m.group(2)), 32))
+            k = (int(math.floor((x - c["x0"]) / CELL)), int(math.floor((z - c["z0"]) / CELL)))
+            cnt[k] = cnt.get(k, 0) + 1
+    return cnt
+
+
 def phase_dop():
     c = load_cells()
     p = os.path.join(IMG, "overview.jpg")
@@ -265,7 +340,11 @@ def phase_dop():
         save(p, recompress(getmap(b, 2048, round(2048 * c["nz"] / c["nx"])), 70))
         log("overview.jpg")
     jobs = [(c, i, j, False) for i, j in c["cells"]]
-    jobs += [(c, i, j, True) for i, j in c["cells"] if count_buildings(i, j) >= 10]
+    if LAND["lod2"] == "citygml_by":
+        cnt = buildings_per_cell_by()
+        jobs += [(c, i, j, True) for i, j in c["cells"] if cnt.get((i, j), 0) >= 10]
+    else:
+        jobs += [(c, i, j, True) for i, j in c["cells"] if count_buildings(i, j) >= 10]
     run_pool(dop_cell, jobs, 3)
 
 

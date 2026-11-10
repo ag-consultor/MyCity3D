@@ -13,7 +13,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from geo import ORT  # noqa: E402
+from geo import LAND, ORT  # noqa: E402
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -27,6 +27,8 @@ SCHRITTE = [
     ("Versionskennungen", ["versionieren.py"]),
     ("Pruefung", ["pruefe_veroeffentlichung.py"]),
 ]
+if not LAND.get("brw"):  # z. B. Bayern: keine freien Bodenrichtwerte (docs/BAYERN.md)
+    SCHRITTE = [s for s in SCHRITTE if s[1][0] not in ("fetch_boris.py", "prepare_brw.py")]
 
 
 def main():

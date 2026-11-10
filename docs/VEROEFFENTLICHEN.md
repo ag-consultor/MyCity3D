@@ -53,4 +53,4 @@ Automatisches Hochladen nach dem Wochenlauf: erst wenn der erste Upload von Hand
 
 ## Vorschaubild
 
-Die Startseite zeigt `site/img/vorschau.jpg`. Das ist ein Bildschirmfoto der Karte (1280 × 800), das du einmal selbst machst. Es wird nicht automatisch erneuert.
+Die Startseite zeigt `site/img/vorschau.jpg`, ein Bildschirmfoto der Karte (1280 × 800). Bei laufender Seite nimmt `python scripts/vorschaubild.py --ortsteil <Name>` es auf (braucht `pip install playwright` und `playwright install chromium`). Ohne `--ortsteil` zeigt es die Ansicht beim Laden der Karte. Es wird nicht automatisch erneuert.

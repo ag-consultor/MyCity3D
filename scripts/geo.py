@@ -27,6 +27,9 @@ CELL = float(_G["kachel_m"])  # Kantenlaenge einer Kachel in Metern
 GEMEINDE_RELATION = int(_G["osm_relation"])  # OSM-Relation der Gemeindegrenze
 GEMEINDE_SCHLUESSEL = str(_G["gemeindeschluessel"])  # amtlicher Gemeindeschluessel (ARS)
 ORT_NAME = ORT["name"]
+from laender import land as _land  # noqa: E402
+LAND_KENNUNG = ORT["land"]["kennung"]
+LAND = _land(LAND_KENNUNG)  # Geodienste des Bundeslandes (scripts/laender.py)
 UMGRENZUNG = tuple(_G["umgrenzung_sued_west_nord_ost"])  # grobe Umgrenzung fuer Abfragen (Sued, West, Nord, Ost)
 
 # Optionaler Nachbarort, schlank mit aufgenommen (Orte, Haltestellen, Gebaeude, Luftbild der Kachel).
@@ -54,7 +57,13 @@ def latlon(x, z):
 
 
 def utm33_to_latlon(E, N):
-    """ETRS89 / UTM 33N (EPSG:25833) -> Breite/Laenge in Grad (Krueger-Reihe, Fehler im mm-Bereich)."""
+    """ETRS89 / UTM 33N (EPSG:25833) -> Breite/Laenge in Grad."""
+    return utm_to_latlon(E, N, 33)
+
+
+def utm_to_latlon(E, N, zone):
+    """ETRS89 / UTM zone N (EPSG:258zz) -> Breite/Laenge in Grad (Krueger-Reihe, Fehler im mm-Bereich).
+    Bayern liefert in Zone 32 (EPSG:25832), Brandenburg in Zone 33."""
     a, f, k0 = 6378137.0, 1 / 298.257222101, 0.9996
     n = f / (2 - f)
     A = a / (1 + n) * (1 + n ** 2 / 4 + n ** 4 / 64)
@@ -66,7 +75,7 @@ def utm33_to_latlon(E, N):
     eta_p = eta - sum(beta[j] * math.cos(2 * (j + 1) * xi) * math.sinh(2 * (j + 1) * eta) for j in range(3))
     chi = math.asin(math.sin(xi_p) / math.cosh(eta_p))
     lat = chi + sum(delta[j] * math.sin(2 * (j + 1) * chi) for j in range(3))
-    lon = math.radians(15.0) + math.atan2(math.sinh(eta_p), math.cos(xi_p))
+    lon = math.radians(zone * 6.0 - 183.0) + math.atan2(math.sinh(eta_p), math.cos(xi_p))
     return math.degrees(lat), math.degrees(lon)
 
 
