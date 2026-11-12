@@ -20,6 +20,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 SCHRITTE = [
     ("Gemeindegrenze, Kacheln, Adressen, OSM, 3D-Gebaeude, Luftbild", ["fetch.py", "boundary", "cells", "addr", "osm", "lod2", "dop"]),
     ("Gelaende (DGM) holen, nur Brandenburg: ort.json bausteine.gelaende", ["fetch_dgm.py"]),
+    ("Gebaeudeumrisse aus OpenStreetMap holen (fuellen Luecken der Gebaeudedaten)", ["fetch_osm_gebaeude.py"]),
     ("Bodenrichtwerte holen (BORIS)", ["fetch_boris.py"]),
     ("Wochenlauf: Orte, Fahrplan, Seitendaten, Seiten bauen", ["update_weekly.py", "--no-state"]),
     ("Bodenrichtwerte aufbereiten", ["prepare_brw.py"]),

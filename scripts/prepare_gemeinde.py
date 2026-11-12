@@ -457,6 +457,8 @@ def split_lines(lines):
 def main():
     os.makedirs(OUT, exist_ok=True)
     buildings = parse_buildings()
+    import osm_luecken  # Luecken der LGB-Daten mit OSM-Umrissen fuellen (scripts/fetch_osm_gebaeude.py)
+    buildings += osm_luecken.luecken(buildings, KEPT, cell_of, in_gemeinde, in_nb, ot_of)
     streets, sidx, rows = parse_addresses(buildings)
     # Beschriftungspunkt je Ortsteil: Mitte der Adresspunkte (der Polygonschwerpunkt liegt oft im Wald)
     byot = {}
