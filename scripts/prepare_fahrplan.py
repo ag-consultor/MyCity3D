@@ -57,8 +57,9 @@ def main():
     z = zipfile.ZipFile(ZIP)
 
     # 1. Haltestellen der Gemeinde, zu Gruppen (Bahnhof/Haltestelle) zusammengefasst
-    stops = {}
+    stops, allnames = {}, {}
     for r in rows(z, "stops.txt"):
+        allnames[r["stop_id"]] = r["stop_name"]  # alle Haltestellen: Name des Starthalts einer Fahrt (Herkunft bei Ankuenften)
         if r.get("location_type") not in ("", "0", None):
             continue
         x, zz = xz(float(r["stop_lat"]), float(r["stop_lon"]))
@@ -81,15 +82,19 @@ def main():
     print("Haltestellengruppen:", len(groups))
 
     # 2. Haltestellenzeiten: nur Zeilen der Gemeinde, dazu je Fahrt die letzte Haltestelle
-    last_seq, cand = {}, []
+    last_seq, cand, first_seq, acand = {}, [], {}, []
     for r in rows(z, "stop_times.txt"):
         t, sq = r["trip_id"], int(r["stop_sequence"])
         if sq > last_seq.get(t, -1):
             last_seq[t] = sq
+        if t not in first_seq or sq < first_seq[t][0]:
+            first_seq[t] = (sq, r["stop_id"])
         if r["stop_id"] in gid_of:
             cand.append((t, sq, r["departure_time"] or r["arrival_time"], gid_of[r["stop_id"]]))
+            acand.append((t, sq, r["arrival_time"] or r["departure_time"], gid_of[r["stop_id"]]))
     cand = [c for c in cand if c[1] < last_seq[c[0]]]  # an der Endhaltestelle faehrt nichts ab
-    trips_needed = {c[0] for c in cand}
+    acand = [c for c in acand if c[1] > first_seq[c[0]][0]]  # am Starthalt kommt nichts an
+    trips_needed = {c[0] for c in cand} | {c[0] for c in acand}
     print("Abfahrten (alle Tage):", len(cand), "Fahrten:", len(trips_needed))
 
     # 3. Fahrten, Linien, Betreiber
@@ -156,7 +161,25 @@ def main():
             h_idx[head] = len(h_list)
             h_list.append(head)
         groups[gi]["d"].append([hm(dep), r_idx[rid], h_idx[head], svc_idx[sid]])
+    RAIL = ("bahn", "sbahn", "ubahn", "sev")
+    n_arr = 0
+    for t, sq, arr, gi in acand:  # Ankuenfte nur von Zuegen (und Schienenersatzverkehr), mit Herkunft = Name des Starthalts der Fahrt
+        rid, sid, head = trips[t]
+        if routes.get(rid, ("?", "sonst", ""))[1] not in RAIL:
+            continue
+        if rid not in r_idx:
+            r_idx[rid] = len(r_list)
+            r_list.append(list(routes.get(rid, ("?", "sonst", ""))))
+        origin = re.sub(r"\s*\(Berlin\)$", "", allnames.get(first_seq[t][1], "")) or head
+        if origin not in h_idx:
+            h_idx[origin] = len(h_list)
+            h_list.append(origin)
+        groups[gi].setdefault("a", []).append([hm(arr), r_idx[rid], h_idx[origin], svc_idx[sid]])
+        n_arr += 1
+    print("Ankuenfte (Bahn, alle Tage):", n_arr)
     for g in groups:
+        if g.get("a"):
+            g["a"] = [list(x) for x in sorted({tuple(x) for x in g["a"]})]
         g["d"] = sorted({tuple(x) for x in g["d"]})
         g["d"] = [list(x) for x in g["d"]]
         g["x"], g["z"] = round(g["x"], 1), round(g["z"], 1)
@@ -171,7 +194,7 @@ def main():
         f.write("window.AL_FAHRPLAN=" + json.dumps(out, ensure_ascii=False, separators=(",", ":")) + ";\n")
     print("geschrieben:", OUT, round(os.path.getsize(OUT) / 1e6, 2), "MB; Feed-Gueltigkeit", valid)
     for g in groups:
-        print("  %-38s %5d Abfahrten" % (g["n"], len(g["d"])))
+        print("  %-38s %5d Abfahrten %5d Ankuenfte" % (g["n"], len(g["d"]), len(g.get("a", []))))
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ Stand 08.11.2026. **Grundsatz:** Auf die Karte kommen nur Daten und Funktionen m
 | Baustein | Quelle | Lizenz | Gilt für |
 |---|---|---|---|
 | Gebäude (3D, LoD2), Adressen, Luftbild 20 cm | LGB Brandenburg, Geodienste | dl-de/by-2-0, „GeoBasis-DE/LGB“, Daten geändert | Brandenburg |
+| Ergänzende Gebäude | OpenStreetMap über Overpass; ein Umriss wird nur übernommen, wenn weniger als 30 % seiner Stützpunkte in einem LoD2-Dach liegen. Einfacher Block mit flachem Dach, Höhe aus OSM oder nach Gebäudeart geschätzt (in der Gebäudekarte gekennzeichnet) | ODbL | überall |
 | Gelände (DGM, 10 m) und Relief | LGB Brandenburg, WCS `dgm_wcs` | dl-de/by-2-0 | Brandenburg (`bausteine.gelaende`) |
 | Dachfarbe | aus dem Luftbild gerechnet | wie das Luftbild | wo das Luftbild vorliegt |
 | Solar-Eignung | im Browser aus den LoD2-Dachflächen gerechnet | wie LoD2 | wo LoD2 vorliegt |

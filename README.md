@@ -11,11 +11,11 @@ Vorschau am Beispielort Niedergörsdorf: https://niedergoersdorf-in-3d.digital-a
 
 | Bereich | Was die Karte kann |
 |---|---|
-| Karte | 3D-Gebäude (LoD2) auf dem Luftbild, Sonnenstand mit Schatten, Design „Nachtflug“ (dunkel, Glas-Panels), Handy-Layout |
+| Karte | 3D-Gebäude (LoD2, Lücken mit Umrissen aus OpenStreetMap gefüllt) auf dem Luftbild, Sonnenstand mit Schatten, Design „Nachtflug“ (dunkel, Glas-Panels), Handy-Layout |
 | Einfärben | Nutzung, Höhe, Bodenrichtwert, **Dachfarbe** (aus dem Luftbild), **Solar-Eignung** (Schätzung aus den Dachflächen); Annahmen im Dialog „Quellen“ |
 | Gelände | Höhenangaben je Gebäude und Ort, abschaltbares Geländerelief, Hangneigung und Geländesenken als Ebenen (bisher nur Brandenburg, `bausteine.gelaende`) |
 | Orte und Termine | Orte nach Gruppen per **Mehrfachauswahl**, Termine nach Kategorien per Mehrfachauswahl; Reiter „Ort \| Termine“ an der Ortskarte, „Veranstaltung \| Ort“ an der Terminkarte |
-| Bus und Bahn | Haltestellen mit Reitern **Live** und **Plan** (nur Abfahrten ab jetzt, 24 Stunden); **Fahrzeuge** als Miniaturmodelle: Züge folgen dem Gleisnetz, ohne Live-Daten nach dem Sollfahrplan, mit Live-Daten an ihrer Position; Verfolgen mit Spur |
+| Bus und Bahn | Haltestellen mit Reitern **Live** und **Plan** (nur Abfahrten ab jetzt, 24 Stunden); an Bahnhöfen **Ankünfte** auf Klick (mit Herkunft des Zuges); **Fahrzeuge** als Miniaturmodelle: Züge folgen dem Gleisnetz, ohne Live-Daten nach dem Sollfahrplan, mit Live-Daten an ihrer Position; Verfolgen mit Spur |
 | Wetter | Wetter und amtliche Warnungen, Wetterbericht für 7 Tage, Niederschlag der letzten Tage, **Wolkenebene** als Shader nach Bedeckungsgrad und Windrichtung des DWD, optional eine Webcam des DWD (`bausteine.webcam`) |
 | Land und Sicherheit | Bodenfeuchte und Agrarwetter der nächsten DWD-Station, Waldbrandstufe mit Frischeprüfung (nur Brandenburg), Ebenen für Löschwasser, Sirenen, Windräder, Biogas und Solarparks, Flugplätze mit Drohnenhinweis, Freizeit- und Alltagsorte, Straßenlampen (aus OpenStreetMap), Verweise auf ein Meldeportal und auf die amtliche Drohnenkarte |
 | Klima | Klimastreifen, Jahreswerte und Monatsmittel von DWD-Stationen (`bausteine.klima`) |
@@ -32,6 +32,7 @@ Welches Land gilt, steht in `ort.json` unter `land.kennung` (`BB` oder `BY`). Di
 | Baustein | Brandenburg | Bayern |
 |---|---|---|
 | Luftbild, Gebäude (3D, LoD2) | LGB, dl-de/by-2-0 | Bayerische Vermessungsverwaltung, CC BY 4.0 |
+| Ergänzende Gebäudeumrisse | OpenStreetMap, ODbL (nur wo die Landesdaten ein Gebäude nicht kennen) | wie Brandenburg |
 | Adressen | amtliche Adresspunkte (LGB) | aus LoD2, ergänzt aus OpenStreetMap |
 | Bodenrichtwerte | BORIS Brandenburg, als Zonen auf der Karte | auf Klick live vom LDBV-Dienst, nichts gespeichert |
 | Gelände (DGM), Relief | LGB, abschaltbar | *(noch offen)* |

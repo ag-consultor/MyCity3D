@@ -308,6 +308,7 @@
   }
   const nf = (n, step) => (Math.round(n / step) * step).toLocaleString('de-DE');
   function solarRows(b) {
+    if (b.osm) return ''; // vereinfachte Flachdach-Prismen: keine Solar-Schätzung
     const q = solarOf(b); if (q.tot < 12) return '';
     return '<dt>Dach</dt><dd>' + nf(q.tot, 1) + ' m² Dachfläche</dd><dt>Solar</dt><dd>'
       + (q.use >= 5 ? 'rund ' + nf(q.use, 5) + ' m² nutzbar, ca. ' + nf(q.kwp, 0.5) + ' kWp, ca. ' + nf(q.kwh, 100) + ' kWh im Jahr<span class="s">Schätzung ohne Gewähr, ohne Verschattung und Statik</span>' : 'kaum geeignete Dachfläche (Nordseiten)') + '</dd>';
@@ -915,7 +916,7 @@
     openCard('<h3>' + (addr.length ? addr[0] : 'Gebäude') + '</h3><p class="sub">' + (otName(b.o) ? esc(otName(b.o)) + ' · ' : '') + esc(USE_DE[b.u] || 'Nutzung unbekannt') + '</p><dl>'
       + (addr.length > 1 ? '<dt>Weitere Adressen</dt><dd>' + addr.slice(1).join(', ') + '</dd>' : '')
       + (addr.length ? '' : '<dt>Adresse</dt><dd>keine amtliche Adresse zugeordnet</dd>')
-      + '<dt>Höhe</dt><dd>' + (b.h ? b.h.toFixed(1) + ' m über Grund' : '–') + '</dd><dt>Gesamthöhe</dt><dd>' + b.t.toFixed(1) + ' m</dd>' + (b.hn != null ? '<dt>Gelände</dt><dd>' + nfH(b.hn) + ' m über NHN<span class="s">am Gebäude, aus dem Geländemodell (10 m)</span></dd>' : '') + solarRows(b) + brwRow(b.x, b.z) + '</dl>'
+      + '<dt>Höhe</dt><dd>' + (b.h ? (b.osm === 2 ? 'ca. ' : '') + b.h.toFixed(1) + ' m über Grund' : '–') + '</dd><dt>Gesamthöhe</dt><dd>' + b.t.toFixed(1) + ' m</dd>' + (b.osm ? '<dt>Herkunft</dt><dd>Umriss aus OpenStreetMap<span class="s">fehlt in den Gebäudedaten der Landesvermessung' + (b.osm === 2 ? '. Die Höhe ist geschätzt, das Dach ist vereinfacht dargestellt' : '. Das Dach ist vereinfacht dargestellt') + '</span></dd>' : '') + (b.hn != null ? '<dt>Gelände</dt><dd>' + nfH(b.hn) + ' m über NHN<span class="s">am Gebäude, aus dem Geländemodell (10 m)</span></dd>' : '') + solarRows(b) + brwRow(b.x, b.z) + '</dl>'
       + (BRW ? BRW_NOTE : '') + brwLiveBox() + '<button class="chip" id="toSun">☀ Besonnung anzeigen</button>'
       + sourceLine(GEO.kurz + ': Gebäude LoD2 und Adressen (' + GEO.lizenz + ')', GEO.url));
     $('#toSun').onclick = () => openPanel('sun', true);
@@ -956,13 +957,13 @@
   const fmtYmd = (s) => s.slice(6, 8) + '.' + s.slice(4, 6) + '.' + s.slice(0, 4);
   const opShort = (o) => String(o || '').replace(/\s+(GmbH|AG|mbH)$/i, '');
   const opShortK = (o) => { const s = opShort(o), k = ORT.betreiberKuerzel || {}; for (const n in k) if (s.indexOf(n) >= 0) return k[n]; return s; }; // ort.json: fahrplan.betreiber_kuerzel
-  function fpDeps(g, day) {
+  function fpDeps(g, day, key) { // key 'd' Abfahrten (Standard), 'a' Ankuenfte
     const sd = day || S.stopDay || S.sun, ds = String(sd.y) + AL.pad(sd.mo) + AL.pad(sd.d);
     if (ds < FP.feedFrom || ds > FP.feedTo) return { err: 'Der Fahrplan (' + BETR + ') liegt nur vom ' + fmtYmd(FP.feedFrom) + ' bis ' + fmtYmd(FP.feedTo) + ' vor. Für diesen Tag gibt es keine Daten.' };
     const i = Math.round((Date.UTC(sd.y, sd.mo - 1, sd.d) - fpBase) / 864e5);
     if (i < 0 || i >= FP.n) return { err: 'Dieser Tag liegt außerhalb der aufbereiteten Daten (Stand ' + esc(FP.stand) + ').' };
     const out = [];
-    g.d.forEach((x) => {
+    (g[key || 'd'] || []).forEach((x) => {
       if (x[0] < 1440 ? FP.svc[x[3]][i] === '1' : (i > 0 && FP.svc[x[3]][i - 1] === '1')) out.push([x[0] % 1440, x[1], x[2]]);
     });
     out.sort((a, b) => a[0] - b[0]);
@@ -1003,26 +1004,27 @@
     r.forEach((q) => { if (q.type !== 'stop' || !q.location) return; const d = Math.hypot((q.location.latitude - lat) * 111194, (q.location.longitude - lon) * kx); if (d < bd) { bd = d; best = q.id; } });
     s.hid = best; return best;
   }
-  async function vbbDeps(s, mins, back) { // mins ab jetzt (höchstens 24 Stunden), back Minuten in die Vergangenheit (nur für die Haltestellenkarte)
+  async function vbbDeps(s, mins, back, kind) { // mins ab jetzt (höchstens 24 Stunden), back Minuten in die Vergangenheit (nur für die Haltestellenkarte)
     const id = await vbbStopId(s); if (!id) return null;
     mins = Math.min(mins, 1440); back = back || 0;
-    const k = id + ':' + mins + ':' + back, c = vbbCache[k]; if (c && Date.now() - c.t < 60000) return c.d;
-    const d = await vbbGet('/stops/' + id + '/departures?' + (back ? 'when=' + encodeURIComponent(new Date(Date.now() - back * 60000).toISOString()) + '&' : '') + 'duration=' + (mins + back) + '&results=' + (back ? 45 : 25) + '&remarks=true&language=de');
+    kind = kind === 'arrivals' ? 'arrivals' : 'departures';
+    const k = id + ':' + mins + ':' + back + ':' + kind, c = vbbCache[k]; if (c && Date.now() - c.t < 60000) return c.d;
+    const d = await vbbGet('/stops/' + id + '/' + kind + '?' + (back ? 'when=' + encodeURIComponent(new Date(Date.now() - back * 60000).toISOString()) + '&' : '') + 'duration=' + (mins + back) + '&results=' + (back ? 45 : 25) + '&remarks=true&language=de');
     vbbCache[k] = { t: Date.now(), d }; return d;
   }
   const clockFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
   const lnClass = (p) => (p === 'bus' ? 'bus' : p === 'suburban' ? 'sbahn' : p === 'tram' ? 'tram' : p === 'regional' || p === 'express' ? 'bahn' : '');
-  const warnTexts = (dep) => { const m = new Map(); (dep.departures || []).forEach((x) => (x.remarks || []).forEach((r) => { if (r.type === 'warning' && (r.summary || r.text)) m.set(r.summary || r.text, r); })); return [...m.values()]; };
+  const warnTexts = (dep) => { const m = new Map(); (dep.departures || dep.arrivals || []).forEach((x) => (x.remarks || []).forEach((r) => { if (r.type === 'warning' && (r.summary || r.text)) m.set(r.summary || r.text, r); })); return [...m.values()]; };
   const warnHtml = (list) => list.map((r) => '<div class="warnbox"><b>' + esc(r.summary || '') + '</b>' + (r.text && r.text !== r.summary ? '<span class="s">' + esc(String(r.text).slice(0, 320)) + '</span>' : '') + '</div>').join('');
   // Nur Abfahrten ab jetzt: bei Verspätung zählt die tatsächliche Zeit, bei Ausfall die planmäßige (eine Minute Nachlauf)
   const depTime = (x) => new Date(x.cancelled ? x.plannedWhen : (x.when || x.plannedWhen)).getTime();
   const depUpcoming = (x) => depTime(x) >= Date.now() - 60000;
   const isRailDep = (x) => !!(x.line && ['suburban', 'regional', 'express'].indexOf(x.line.product) >= 0);
   const depRecentRail = (x) => !depUpcoming(x) && isRailDep(x) && depTime(x) >= Date.now() - 3600000; // Züge der letzten Stunde: war der Zug pünktlich?
-  function depRow(x) {
+  function depRow(x, arr) {
     const when = x.when || x.plannedWhen, delay = Math.round((x.delay || 0) / 60), late = x.cancelled ? '' : delay >= 1 ? '<span class="del">+' + delay + '</span>' : '';
     return '<div class="dep' + (x.cancelled || !depUpcoming(x) ? ' past' : '') + '"><span class="t">' + clockFmt.format(new Date(x.cancelled ? x.plannedWhen : when)) + '</span>' + late + '<span class="ln ' + lnClass(x.line && x.line.product) + '">' + esc(x.line ? x.line.name : '?') + '</span><span class="hd">'
-      + esc(x.direction || '') + '<span class="s">' + (x.cancelled ? '<b class="del">fällt aus</b> · ' : '') + (x.platform ? 'Gleis/Steig ' + esc(x.platform) : '') + '</span></span></div>';
+      + esc(arr ? (x.provenance ? 'von ' + x.provenance : x.origin && x.origin.name ? 'von ' + x.origin.name : x.direction ? 'Ziel des Zuges: ' + x.direction : '') : (x.direction || '')) + '<span class="s">' + (x.cancelled ? '<b class="del">fällt aus</b> · ' : '') + (x.platform ? 'Gleis/Steig ' + esc(x.platform) : '') + '</span></span></div>';
   }
   function bindVbb(box, again) {
     const b = $('[data-vbb]', box); if (b) b.onclick = () => { vbbSet(true); again(); };
@@ -1030,16 +1032,16 @@
     const r = $('[data-vbb-retry]', box); if (r) r.onclick = (e) => { e.preventDefault(); again(); };
   }
   async function liveFill(s, box) {
-    const again = () => liveFill(s, box);
+    const arr = S.stopDir === 'arr', again = () => liveFill(s, box);
     if (!VBB_HOSTS.length) { box.innerHTML = ''; return; }
     if (!vbbOk) { box.innerHTML = vbbConsent('Echtzeit-Abfahrten mit Verspätungen und Meldungen für diese Haltestelle.'); bindVbb(box, again); return; }
     box.innerHTML = '<p class="note">Live-Daten werden geladen …</p>';
     try {
-      const d = await vbbDeps(s, 180, 60);
+      const d = await vbbDeps(s, 180, 60, arr ? 'arrivals' : 'departures');
       if (!S.card || S.card.type !== 'stop' || S.card.i !== s.i) return;
       if (!d) { box.innerHTML = '<p class="note">Live: Haltestelle im Echtzeitdienst nicht gefunden.</p>'; return; }
-      const w = warnTexts(d), all = (d.departures || []).filter((x) => !s.mode || isRailDep(x) === (s.mode === 'rail')), list = all.filter(depRecentRail).slice(-4).concat(all.filter(depUpcoming).slice(0, 8)); // bis zu 4 Züge der letzten Stunde (grau), dann die nächsten
-      box.innerHTML = '<div class="live"><b>Live, nächste 3 Stunden</b>' + warnHtml(w) + (list.length ? '<div class="deps">' + list.map(depRow).join('') + '</div>' : '<p class="note">In den nächsten 3 Stunden fährt hier laut Echtzeitdienst nichts ab.</p>')
+      const w = warnTexts(d), all = (d[arr ? 'arrivals' : 'departures'] || []).filter((x) => !s.mode || isRailDep(x) === (s.mode === 'rail')), list = all.filter(depRecentRail).slice(-4).concat(all.filter(depUpcoming).slice(0, 8)); // bis zu 4 Züge der letzten Stunde (grau), dann die nächsten
+      box.innerHTML = '<div class="live"><b>Live, ' + (arr ? 'Ankünfte der nächsten 3 Stunden' : 'nächste 3 Stunden') + '</b>' + warnHtml(w) + (list.length ? '<div class="deps">' + list.map((x) => depRow(x, arr)).join('') + '</div>' : '<p class="note">In den nächsten 3 Stunden ' + (arr ? 'kommt hier laut Echtzeitdienst nichts an.' : 'fährt hier laut Echtzeitdienst nichts ab.') + '</p>')
         + '<p class="note">Quelle: Echtzeitdaten (' + BETR + ') über ' + vbbHostName() + ', Stand ' + (d.realtimeDataUpdatedAt ? clockFmt.format(new Date(d.realtimeDataUpdatedAt * 1000)) + ' Uhr' : 'unbekannt') + '. Inoffiziell, ohne Gewähr. <a href="#" data-vbb-off>Live-Daten ausblenden</a></p></div>';
       bindVbb(box, again);
     } catch (e) { box.innerHTML = '<p class="note">Live-Daten zurzeit nicht abrufbar: Die Dienste antworten nicht. <a href="#" data-vbb-retry>Erneut versuchen</a> · <a href="#" data-vbb-off>Live-Daten ausblenden</a></p>'; }
@@ -1152,6 +1154,11 @@
       a = Math.max(a, t + 3000); d = Math.max(d, a);
       pts.push({ x: fzX(loc.longitude), z: fzZ(loc.latitude), a, d, name: s.stop.name, delay: s.arrivalDelay != null ? s.arrivalDelay : s.departureDelay }); t = d;
     });
+    // Steht der Zug am nächsten Halt (Lage nahe der Haltestelle, Abfahrt noch nicht erreicht): von der Haltestelle selbst starten, sonst entsteht ein
+    // winziger Abschnitt von der gemeldeten Lage zur Haltestelle, dessen Richtung bei jeder Aktualisierung anders ausfällt (Zug dreht sich, rutscht)
+    if (pts.length > 1 && Math.hypot(pts[0].x - pts[1].x, pts[0].z - pts[1].z) < 160 && pts[1].d > now + 1000) {
+      const q = pts[1]; pts.splice(0, 2, { x: q.x, z: q.z, a: now, d: q.d, name: q.name, delay: q.delay, steht: true });
+    }
     return pts;
   }
   function fzAt(pts, now) { // gerade Verbindung zwischen den Halten (Busse), in der Zeit linear, am Halt wartet das Fahrzeug bis zur Abfahrt
@@ -1237,13 +1244,13 @@
     return legs;
   }
   function fzAtLegs(v, t) {
-    const L = v.legs;
+    const L = v.legs, dirOf = (i) => { for (let j = i; j < L.length; j++) if (L[j].L > 25) return fzLegAt(L[j], 0); return null; }; // Richtung des nächsten längeren Abschnitts
     for (let i = 0; i < L.length; i++) {
       const g = L[i];
-      if (t < g.t0) return fzLegAt(g, 0); // wartet am Halt, Blick in Fahrtrichtung des nächsten Abschnitts
-      if (t < g.t1) return fzLegAt(g, (t - g.t0) / Math.max(1, g.t1 - g.t0));
+      if (t < g.t0) { const r = fzLegAt(g, 0), q = g.L < 25 ? dirOf(i) : g.L > 80 ? fzLegAt(g, 40 / g.L) : null; if (q) { r.dx = q.dx; r.dz = q.dz; } r.moving = false; return r; } // wartet am Halt, Blick in Fahrtrichtung des nächsten Abschnitts
+      if (t < g.t1) { const f = (t - g.t0) / Math.max(1, g.t1 - g.t0), r = fzLegAt(g, f), q = g.L < 25 ? dirOf(i) : g.L > 80 && f * g.L < 40 ? fzLegAt(g, 40 / g.L) : null; if (q) { r.dx = q.dx; r.dz = q.dz; } r.moving = g.L > 25; return r; }
     }
-    return fzLegAt(L[L.length - 1], 1);
+    const r = fzLegAt(L[L.length - 1], 1); r.moving = false; return r;
   }
   const FZ_STRASSE = { motorway: 1, trunk: 1, primary: 1, secondary: 1, tertiary: 1, unclassified: 1, residential: 1, living_street: 1, service: 1 };
   function fzSegs(v) { // Straßen aus den geladenen Kacheln im Umfeld der Strecke (Busse)
@@ -1292,13 +1299,14 @@
           v = { id: mv.tripId, kind, g, m, x, z, ox: 0, oz: 0, miss: 0, segs: [] };
           FZ.list.set(mv.tripId, v);
         }
-        v.miss = 0; v.pts = fzPath(mv, now); v.t0 = now; v.line = mv.line.name; v.dir = mv.direction || ''; v.op = (mv.line.operator && mv.line.operator.name) || '';
+        v.miss = 0; v.pts = fzPath(mv, now); v.t0 = now; v.hold = v.pts[0].steht ? v.pts[0].d : 0; v.line = mv.line.name;  /* hold: wartend, bleibt bis zur Abfahrt */  v.dir = mv.direction || ''; v.op = (mv.line.operator && mv.line.operator.name) || '';
         v.m.el.title = v.line + ' nach ' + (v.dir || '?');
         if (kind === 'bus') { v.legs = null; v.segs = fzSegs(v); } else v.legs = fzLegsFor(v); // Züge: Gleisweg, Busse: Gerade mit Einrasten
         const p0 = v.legs && v.legs.length ? fzLegAt(v.legs[0], 0) : v.pts[0];
         v.ox = v.x - p0.x; v.oz = v.z - p0.z; // Ausgleich: die angezeigte Lage gleitet zur neuen
       });
-      FZ.list.forEach((v, id) => { if (!v.sim && !seen.has(id) && ++v.miss > 2) { fzRemove(v); FZ.list.delete(id); } });
+      FZ.list.forEach((v, id) => { if (!v.sim && !seen.has(id) && ++v.miss > 2 && now > (v.hold || 0) + 120000) { fzRemove(v); FZ.list.delete(id); } });
+      FZ.list.forEach((v) => { if (!v.sim && v.line) fzLiveSeen(v.line, v.dir, now); });
       FZ.liveN = [...FZ.list.values()].filter((v) => !v.sim).length; FZ.stand = now; fzSimSync(); fzSetState('live, Stand ' + clockFmt.format(new Date(now)) + ' Uhr, ' + FZ.list.size + ' Fahrzeuge');
     } catch (e) { fzSetState('Dienst nicht erreichbar, Fahrzeuge bleiben stehen'); }
     FZ.busy = false;
@@ -1309,7 +1317,7 @@
       if (!v.pts) return;
       let p, ang;
       if (v.legs && v.legs.length) { // Zug: entlang des Gleises, Richtung = Gleisrichtung
-        const r = fzAtLegs(v, t); p = { x: r.x, z: r.z }; if (r.dx || r.dz) ang = Math.atan2(r.dz, r.dx);
+        const r = fzAtLegs(v, t); p = { x: r.x, z: r.z }; if ((r.dx || r.dz) && (r.moving || v.ang === undefined)) ang = Math.atan2(r.dz, r.dx); // steht der Zug, behält er seine Richtung
         const dec = Math.exp(-(t - v.t0) / 6000); p = { x: p.x + v.ox * dec, z: p.z + v.oz * dec };
       } else if (v.kind !== 'bus') { // Zug ohne weiteren Halt in den Daten: bleibt stehen
         p = { x: v.pts[0].x, z: v.pts[0].z };
@@ -1359,16 +1367,23 @@
   }
   canvas.addEventListener('pointerdown', () => { if (FZ.follow) { FZ.follow = null; const b = $('#fzFollow', cardBody); if (b) b.textContent = 'Verfolgen'; } }); // wer die Karte anfasst, löst die Verfolgung
   // ---- Fahrzeuge aus dem Sollfahrplan (data/fahrten.js): fahren immer, ohne Verbindung zu Dritten; mit Live-Daten ersetzen die echten Positionen sie
+  // Welche Linie in welcher Richtung zuletzt live gemeldet wurde: der Fahrplan-Zug derselben Linie und Richtung bleibt dann 12 Minuten lang weg,
+  // auch wenn der Dienst den Zug zwischendurch nicht meldet (sonst springt die Karte zwischen dem Fahrplan-Zug und dem echten Zug hin und her)
+  const fzNorm = (s) => String(s || '').toLowerCase().replace(/[^a-zäöüß0-9]+/g, '');
+  function fzLiveSeen(line, dir, now) { (FZ.seen || (FZ.seen = [])).push({ line: fzNorm(line), dir: fzNorm(dir).slice(0, 7), t: now }); FZ.seen = FZ.seen.filter((q) => now - q.t < 15 * 60000); }
+  const fzCovered = (line, dir, now) => (FZ.seen || []).some((q) => now - q.t < 12 * 60000 && q.line === fzNorm(line) && (!q.dir || !fzNorm(dir) || fzNorm(dir).slice(0, 7) === q.dir));
   function fzSimSync() {
     const FA = window.AL_FAHRTEN; if (!FA || !S.L.fahrzeuge) return;
     const n = nowB(), day0 = AL.berlinToUTC(n.y, n.mo, n.d, 0, 0), now = Date.now(), di = Math.round((Date.UTC(n.y, n.mo - 1, n.d) - Date.parse(FA.base)) / 864e5);
-    const liveOk = vbbOk && FZ.stand && now - FZ.stand < 100000 && FZ.liveN > 0, want = new Set();
-    if (!liveOk) FA.trips.forEach((tr, ti) => {
+    const liveOk = vbbOk && FZ.stand && now - FZ.stand < 100000 && FZ.liveN > 0, want = new Set(), liveFresh = vbbOk && FZ.stand && now - FZ.stand < 300000;
+    FA.trips.forEach((tr, ti) => {
       for (const k of [0, 1]) { // heute und gestern (Fahrten über Mitternacht)
         const idx = di - k, st = tr[3]; if (idx < 0 || FA.svc[tr[2]][idx] !== '1') continue;
         const t0 = day0 + (st[0][3] - k * 86400) * 1000, t1 = day0 + (st[st.length - 1][2] - k * 86400) * 1000;
         if (now < t0 - 2000 || now > t1 + 2000) continue;
-        const id = 'sim:' + ti + ':' + k; want.add(id);
+        const id = 'sim:' + ti + ':' + k;
+        if (liveFresh && fzCovered(FA.routes[tr[0]][0], FA.heads[tr[1]], now)) continue; // dieser Zug wird live gezeigt
+        want.add(id);
         if (FZ.list.has(id)) continue;
         const r = FA.routes[tr[0]], kind = r[1] === 'bus' || r[1] === 'sev' ? 'bus' : /ODEG|Ostdeutsche/i.test(r[2]) ? 'odeg' : 'db';
         const pts = st.map((q) => ({ x: q[0], z: q[1], a: day0 + (q[2] - k * 86400) * 1000, d: day0 + (q[3] - k * 86400) * 1000 }));
@@ -1398,23 +1413,24 @@
     if (!g) html += '<p class="note">Zu dieser Haltestelle wurde im Fahrplan keine passende Haltestelle gefunden (Lage oder Name weichen ab).</p>';
     else {
       const RAIL_T = ['bahn', 'sbahn', 'ubahn', 'sev'], modeOk = (ri) => !s.mode || (RAIL_T.indexOf(FP.routes[ri][1]) >= 0) === (s.mode === 'rail');
-      const r = fpDeps(g); if (r.list) r.list = r.list.filter(([m, ri]) => modeOk(ri));
+      const arrMode = S.stopDir === 'arr' && !!(g.a && g.a.length), K = arrMode ? 'a' : 'd';
+      const r = fpDeps(g, null, K); if (r.list) r.list = r.list.filter(([m, ri]) => modeOk(ri));
       if (r.list && isToday) { // heute: nur die nächsten 24 Stunden ab jetzt (Rest von heute plus die frühen Abfahrten von morgen), nichts Vergangenes
-        const tm = new Date(Date.UTC(n.y, n.mo - 1, n.d + 1)), rt = fpDeps(g, { y: tm.getUTCFullYear(), mo: tm.getUTCMonth() + 1, d: tm.getUTCDate() });
+        const tm = new Date(Date.UTC(n.y, n.mo - 1, n.d + 1)), rt = fpDeps(g, { y: tm.getUTCFullYear(), mo: tm.getUTCMonth() + 1, d: tm.getUTCDate() }, K);
         r.list = r.list.filter(([m, ri]) => m >= nowMin || (m >= nowMin - 60 && ['bahn', 'sbahn', 'ubahn'].indexOf(FP.routes[ri][1]) >= 0)).concat(rt.list ? rt.list.filter(([m, ri]) => m < nowMin && modeOk(ri)).map((x) => [x[0], x[1], x[2], 1]) : []);
       }
       const dayTxt = dateFmt.format(new Date(Date.UTC(sd.y, sd.mo - 1, sd.d)));
       html += '<div class="daynav"><button class="chip" data-d="-1" aria-label="Vortag">◀</button><b>' + esc(dayTxt) + (isToday ? ' (heute)' : '') + '</b><button class="chip" data-d="1" aria-label="Folgetag">▶</button><button class="chip" data-d="0">Heute</button></div>';
       if (r.err) html += '<p class="note">' + r.err + '</p>';
-      else if (!r.list.length) html += '<p class="note">' + (isToday ? 'Heute fährt hier laut Sollfahrplan nichts mehr ab.' : 'An diesem Tag fährt hier laut Sollfahrplan nichts ab.') + '</p>';
+      else if (!r.list.length) html += '<p class="note">' + (arrMode ? (isToday ? 'Heute kommt hier laut Sollfahrplan nichts mehr an.' : 'An diesem Tag kommt hier laut Sollfahrplan nichts an.') : isToday ? 'Heute fährt hier laut Sollfahrplan nichts mehr ab.' : 'An diesem Tag fährt hier laut Sollfahrplan nichts ab.') + '</p>';
       else {
         let nextDone = false, sev = false;
-        html += '<p class="note">' + (isToday ? r.list.filter(([m, ri, hi, tmr]) => tmr || m >= nowMin).length : r.list.length) + (isToday ? ' Abfahrten in den nächsten 24 Stunden, dazu die Züge der letzten Stunde (grau)' : ' Abfahrten am gewählten Tag') + '</p><div class="deps" id="deps">' + r.list.map(([m, ri, hi, tmr]) => {
+        html += '<p class="note">' + (isToday ? r.list.filter(([m, ri, hi, tmr]) => tmr || m >= nowMin).length : r.list.length) + (isToday ? (arrMode ? ' Ankünfte in den nächsten 24 Stunden, dazu die Züge der letzten Stunde (grau)' : ' Abfahrten in den nächsten 24 Stunden, dazu die Züge der letzten Stunde (grau)') : (arrMode ? ' Ankünfte am gewählten Tag' : ' Abfahrten am gewählten Tag')) + '</p><div class="deps" id="deps">' + r.list.map(([m, ri, hi, tmr]) => {
           const rt = FP.routes[ri], past = isToday && !tmr && m < nowMin, next = isToday && !past && !nextDone;
           if (next) nextDone = true;
           if (rt[1] === 'sev') sev = true;
           return '<div class="dep' + (past ? ' past' : '') + (next ? ' next' : '') + '"><span class="t">' + AL.hhmm(m) + (tmr ? '<span class="s"> morgen</span>' : '') + '</span><span class="ln ' + esc(rt[1]) + '"' + (rt[1] === 'sev' ? ' title="Bus unter einer Bahnliniennummer, vermutlich Schienenersatzverkehr"' : '') + '>' + esc(rt[0]) + '</span><span class="hd">'
-            + esc(FP.heads[hi]) + '<span class="s">' + esc(opShortK(rt[2])) + '</span></span></div>';
+            + esc((arrMode ? 'von ' : '') + FP.heads[hi]) + '<span class="s">' + esc(opShortK(rt[2])) + '</span></span></div>';
         }).join('') + '</div>' + (sev ? '<p class="note">Grau-gelbe Linien: Bus unter einer Bahnliniennummer, vermutlich Schienenersatzverkehr (Schlussfolgerung aus den Daten).</p>' : '');
       }
       html += '<p class="note">Sollfahrplan ohne Echtzeit, ohne Gewähr. Abweichungen, Baustellen und Ausfälle sind nicht enthalten.</p>';
@@ -1423,6 +1439,7 @@
     const plan = html.slice(planStart); html = html.slice(0, planStart);
     const hasLive = VBB_HOSTS.length > 0; // ohne Live-Dienste (ort.json: fahrplan.live_aus) gibt es nur den Plan
     const tab = hasLive ? (S.stopTab || (vbbOk ? 'live' : 'plan')) : 'plan';
+    if (g && g.a && g.a.length) html += '<div class="chips dirs" role="group" aria-label="Abfahrten oder Ankünfte">' + [['dep', 'Abfahrten'], ['arr', 'Ankünfte']].map(([k, l]) => '<button class="chip' + ((S.stopDir || 'dep') === k ? ' on' : '') + '" data-dir="' + k + '" aria-pressed="' + ((S.stopDir || 'dep') === k) + '">' + l + '</button>').join('') + '</div>';
     html += '<div class="chips tabs" role="tablist"' + (hasLive ? '' : ' hidden') + '>' + [['live', 'Live'], ['plan', 'Plan']].map(([k, l]) => '<button class="chip" role="tab" data-tab="' + k + '">' + l + '</button>').join('') + '</div>'
       + '<div id="tabLive" role="tabpanel"><div id="liveBox"></div></div><div id="tabPlan" role="tabpanel" hidden>' + plan + '</div>';
     html += sourceLine('Fahrplan: ' + (ORT.betreiberKurz || '') + ' (' + (ORT.lizenz || '') + '), Stand ' + (FP ? fmtYmd(FP.stand.replace(/-/g, '')) : '–') + '; Lage: OpenStreetMap', ORT.lizenzUrl || '#');
@@ -1436,6 +1453,7 @@
       if (t === 'plan') { const nx = $('.dep.next', cardBody), box = $('#deps', cardBody); if (nx && box) box.scrollTop = Math.max(0, nx.offsetTop - box.offsetTop - 6); }
     };
     $$('[data-tab]', cardBody).forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+    $$('[data-dir]', cardBody).forEach((b) => { b.onclick = () => { S.stopDir = b.dataset.dir; renderStop(); }; });
     showTab(tab);
     $$('[data-d]', cardBody).forEach((b) => { b.onclick = () => {
       const k = +b.dataset.d, t = new Date(k === 0 ? Date.UTC(n.y, n.mo - 1, n.d) : Date.UTC(sd.y, sd.mo - 1, sd.d + k));
@@ -1444,7 +1462,7 @@
     }; });
   }
   function showStop(i) {
-    const s = STOPS[i];
+    const s = STOPS[i]; S.stopDir = 'dep'; // Ankünfte nur auf Klick
     $$('.mk.sel').forEach((m) => m.classList.remove('sel')); s.marker.el.classList.add('sel');
     S.card = { type: 'stop', i };
     renderStop();
@@ -1755,6 +1773,7 @@
     + '<li><b>Bäume:</b> symbolisch. Sie werden in Waldflächen zufällig verteilt und zeigen keine echten Einzelbäume.</li>'
     + (ORT.gelaende ? '<li><b>Geländehöhen und Relief:</b> Digitales Geländemodell (DGM) der LGB, © GeoBasis-DE/LGB, <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a> (Daten geändert), auf 10 m gemittelt. Die Höhen (Meter über NHN) gelten für die Mitte des Gebäudes, Ortes oder Ortsteils. Das Relief ist stark überhöht (Faktor 6) und nur eine Schummerung auf dem Luftbild, das Gelände selbst bleibt flach.</li>' : '')
     + '<li><b>Dachfarbe und Solar-Eignung:</b> Die Dachfarbe ist der mittlere Farbton des Dachs im Luftbild (' + esc(GEO.fuss || GEO.text) + '). Schatten, Bäume und die Schrägsicht des Luftbilds verfälschen einzelne Dächer. Die Solar-Eignung rechnet aus Neigung und Ausrichtung der LoD2-Dachflächen die Strahlung relativ zur besten Lage (Süd, 35 Grad). Nutzbar sind 75 % einer geneigten und 50 % einer flachen Fläche bei 0,21 kWp je m², ' + SOL_KWH + ' kWh je kWp und Jahr bei bester Ausrichtung. Keine Verschattung, keine Statik, kein Denkmalschutz, keine Anlagenplanung: grobe Schätzung ohne Gewähr.</li>'
+    + '<li><b>Ergänzte Gebäude:</b> Wo die Gebäudedaten der Landesvermessung ein Gebäude nicht enthalten (Neubauten, nicht erfasste Bauten, einzelne Kirchen), zeigt die Karte den Umriss aus OpenStreetMap (© OpenStreetMap-Mitwirkende, <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">ODbL</a>) als einfachen Block mit flachem Dach. Höhen stammen aus OpenStreetMap oder sind nach der Gebäudeart geschätzt. In der Gebäudekarte steht dann „Umriss aus OpenStreetMap“.</li>'
     + (window.AL_GESCHICHTE ? '<li><b>Ortsgeschichte:</b> Texte aus der <a href="https://de.wikipedia.org/" target="_blank" rel="noopener">deutschsprachigen Wikipedia</a> (Artikel der Ortsteile, Abschnitt Geschichte, gekürzt), <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.de" target="_blank" rel="noopener">CC BY-SA 4.0</a>. Autoren und Version stehen bei jedem Text. Gelesen am ' + esc(fmtIso(window.AL_GESCHICHTE.stand)) + '. Wikipedia kann sich ändern, maßgeblich ist der Artikel.</li>' : '')
     + (ORT.touren ? '<li><b>Touren:</b> Routen aus OpenStreetMap (© OpenStreetMap-Mitwirkende, <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">ODbL</a>)' + (window.AL_TOUREN && window.AL_TOUREN.wikivoyage ? ', Beschreibung aus <a href="' + esc(window.AL_TOUREN.wikivoyage.url) + '" target="_blank" rel="noopener">Wikivoyage</a> (CC BY-SA 4.0, mit Urhebernennung auf der Touren-Seite)' : '') + '. Zustand und Sperrungen vor Ort können abweichen.</li>' : '')
     + (ORT.gelaende ? '<li><b>Hangneigung und Geländesenken:</b> Eigene Auswertung des Geländemodells der LGB (© GeoBasis-DE/LGB, dl-de/by-2-0, Daten geändert): Neigung aus dem 10-m-Raster, Senken durch Füllen auf einem 20-m-Raster. Eine Geländeanalyse, keine Gefahrenkarte: Teiche, Kiesgruben, Gräben und Dämme erscheinen mit. Keine Aussage zu Starkregen oder Überschwemmung.</li>' : '')

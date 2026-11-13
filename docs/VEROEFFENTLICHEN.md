@@ -41,7 +41,7 @@ Täglich (`scripts/taeglich.bat`): Waldbrandstufe und Bodenfeuchte, danach `vers
 
 Selten (einmal im Jahr oder bei Bedarf): Klima (`fetch_klima.py`) und Ortsgeschichte (`fetch_ortsgeschichte.py`, Zweifelsfälle landen in `data/ergaenzung/ortsgeschichte_pruefen.json` und werden nicht angezeigt; eigene Artikeltitel in `data/ergaenzung/ortsgeschichte_titel.json`).
 
-Nicht wöchentlich: Gebäude und Adressen vierteljährlich (`python scripts/fetch.py addr lod2`, danach `prepare_gemeinde.py`), Bodenrichtwerte jährlich nach dem Stichtag (`fetch_boris.py`, `prepare_brw.py`).
+Nicht wöchentlich: Gebäude und Adressen vierteljährlich (`python scripts/fetch.py addr lod2`, dazu `fetch_osm_gebaeude.py` für die ergänzenden Umrisse, danach `prepare_gemeinde.py`), Bodenrichtwerte jährlich nach dem Stichtag (`fetch_boris.py`, `prepare_brw.py`).
 
 Einplanen unter Windows, einmalig (Pfad anpassen):
 
